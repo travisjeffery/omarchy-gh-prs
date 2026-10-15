@@ -4,7 +4,7 @@ A bar widget for the [Omarchy](https://omarchy.org) shell: every pull request
 you have open on GitHub, whether its checks pass, how long since it moved, and
 a detail view that can copy, merge or close it.
 
-![The panel open under the bar, listing open PRs grouped by owner with a coloured dot, a status and an age for each](assets/screenshot.png)
+![The panel open under the bar, listing open PRs grouped by owner with a coloured dot, a status and an age for each](preview.png)
 
 ## What it shows
 
@@ -118,7 +118,7 @@ shell's settings panel:
 | `query`       | blank     | A GitHub search to use instead of `is:pr is:open author:@me archived:false` |
 
 ```json
-{ "id": "travisjeffery.gh-prs", "badge": "active", "interval": 120 }
+{ "id": "io.github.travisjeffery.gh-prs", "badge": "active", "interval": 120 }
 ```
 
 `query` takes anything GitHub's search box does, so `is:pr is:open
@@ -145,22 +145,36 @@ checked for shape before it reaches a command line.
 
 ## Installing it
 
-Needs `gh` (signed in with `gh auth login`), `jq`, `wl-copy` and `xdg-open` on
-`$PATH`.
-
 ```bash
-git clone <this repository> ~/src/omarchy-gh-prs
-ln -s ~/src/omarchy-gh-prs ~/.config/omarchy/plugins/travisjeffery.gh-prs
-omarchy-shell shell rescanPlugins
-omarchy plugin enable travisjeffery.gh-prs --section right
+omarchy plugin add https://github.com/travisjeffery/omarchy-gh-prs --enable
 ```
 
-Once the repository is published, `omarchy plugin add <git-url> --enable`
-does the same in one step.
+That clones the repository into
+`~/.config/omarchy/plugins/io.github.travisjeffery.gh-prs`, checks it, and puts
+the widget on the bar. Update it later with
+`omarchy plugin update io.github.travisjeffery.gh-prs`.
 
-Editing a symlinked plugin does not reload it: the shell watches
-`~/.config/omarchy/plugins` and does not follow the link. Run
-`omarchy restart shell` after a change.
+### Requirements
+
+- [`gh`](https://cli.github.com), signed in with `gh auth login`
+  (`omarchy pkg add github-cli` if you don't have it)
+- `jq`
+- `wl-copy` (from `wl-clipboard`), for *Copy link*
+- `xdg-open` (from `xdg-utils`), to open PRs in the browser
+
+### What it can do with your account
+
+The widget runs `gh` as you, with whatever access your `gh` login has, and
+holds no token of its own. Listing, the detail view and *Open* only read.
+**Merge** and **Close PR** write: they run `gh pr merge` and `gh pr close` on
+the PR you picked, with your permissions, and with *delete branch* switched on
+Close also deletes the PR's branch. Each happens only after its *Confirm*
+button, and a merge is pinned to the head commit you were shown. It never
+passes `--admin`, so branch protection applies to you as it does on GitHub.
+
+Outside its own folder it writes the sort order to
+`~/.local/state/omarchy-gh-prs/sort`, and a demo-mode flag under
+`~/.cache/omarchy-gh-prs/` when you turn demo mode on.
 
 ## Screenshots
 
@@ -173,9 +187,35 @@ bin/gh-prs demo on
 bin/gh-prs demo off
 ```
 
+## Developing it
+
+To work on a checkout, link it into the plugins folder instead of adding it:
+
+```bash
+git clone https://github.com/travisjeffery/omarchy-gh-prs ~/src/omarchy-gh-prs
+ln -s ~/src/omarchy-gh-prs ~/.config/omarchy/plugins/io.github.travisjeffery.gh-prs
+omarchy-shell shell rescanPlugins
+omarchy plugin enable io.github.travisjeffery.gh-prs --section right
+```
+
+The shell watches `~/.config/omarchy/plugins` but does not follow the link, so
+run `omarchy restart shell` after a change. Check it with:
+
+```bash
+omarchy plugin validate ~/src/omarchy-gh-prs
+qmllint -I "${OMARCHY_PATH:-/usr/share/omarchy}/shell" ~/src/omarchy-gh-prs/Panel.qml
+```
+
 ## Removing it
 
 ```bash
-omarchy plugin disable travisjeffery.gh-prs
-rm ~/.config/omarchy/plugins/travisjeffery.gh-prs
+omarchy plugin remove io.github.travisjeffery.gh-prs
+rm -rf ~/.cache/omarchy-gh-prs ~/.local/state/omarchy-gh-prs
 ```
+
+`remove` takes the widget off the bar and deletes the plugin folder (for a
+linked checkout, only the link).
+
+## License
+
+MIT. See [LICENSE](LICENSE).

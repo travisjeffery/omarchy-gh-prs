@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.travisjeffery.gh-prs",
   "name": "GitHub PRs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": "Travis Jeffery",
   "license": "MIT",
   "description": "Your open GitHub pull requests in the bar, with a dot for whether their checks pass and a click that opens each one",
