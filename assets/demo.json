@@ -2,69 +2,55 @@
  {
   "data": {
    "search": {
-    "issueCount": 9,
     "pageInfo": {
      "hasNextPage": false,
      "endCursor": null
     },
     "nodes": [
      {
-      "number": 482,
-      "title": "Retry webhook deliveries with exponential backoff",
-      "url": "https://github.com/acme/api/pull/482",
-      "isDraft": false,
-      "reviewDecision": "APPROVED",
-      "updatedAt": "2026-01-10T15:00:00Z",
-      "repository": {
-       "name": "api",
-       "owner": {
-        "login": "acme"
-       }
-      },
-      "commits": {
-       "nodes": [
-        {
-         "commit": {
-          "statusCheckRollup": {
-           "state": "SUCCESS",
-           "contexts": {
-            "checkRunCountsByState": [
-             {
-              "state": "SUCCESS",
-              "count": 14
-             },
-             {
-              "state": "SKIPPED",
-              "count": 6
-             }
-            ],
-            "statusContextCountsByState": []
-           }
-          }
-         }
-        }
-       ]
-      }
-     },
-     {
       "number": 479,
       "title": "Add pagination to the audit log endpoint",
       "url": "https://github.com/acme/api/pull/479",
       "isDraft": false,
       "reviewDecision": "CHANGES_REQUESTED",
-      "updatedAt": "2026-01-10T14:00:00Z",
+      "updatedAgo": 7200,
+      "createdAgo": 180000,
+      "headRefName": "you/add-479",
+      "baseRefName": "main",
+      "headRefOid": "652cdd06ffd2d50fa14e8f55f865972b5c0eaf94",
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "BLOCKED",
+      "author": {
+       "login": "you"
+      },
       "repository": {
        "name": "api",
+       "nameWithOwner": "acme/api",
        "owner": {
         "login": "acme"
-       }
+       },
+       "squashMergeAllowed": true,
+       "mergeCommitAllowed": true,
+       "rebaseMergeAllowed": false
+      },
+      "latestOpinionatedReviews": {
+       "nodes": [
+        {
+         "state": "CHANGES_REQUESTED",
+         "author": {
+          "login": "mira"
+         }
+        }
+       ]
+      },
+      "reviewRequests": {
+       "nodes": []
       },
       "commits": {
        "nodes": [
         {
          "commit": {
           "statusCheckRollup": {
-           "state": "SUCCESS",
            "contexts": {
             "checkRunCountsByState": [
              {
@@ -76,33 +62,372 @@
               "count": 2
              }
             ],
-            "statusContextCountsByState": []
+            "statusContextCountsByState": [],
+            "nodes": [
+             {
+              "__typename": "CheckRun",
+              "name": "build",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "lint",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "typecheck",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "integration tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "docs",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "license scan",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "container image",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "e2e (webkit)",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "bundle size",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "coverage",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "schema check",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "codeql",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests (arm64)",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "build (2)",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests (2)",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "lint (2)",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "typecheck (2)",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "test (postgres 16)",
+              "status": "COMPLETED",
+              "conclusion": "FAILURE"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "lint",
+              "status": "COMPLETED",
+              "conclusion": "FAILURE"
+             }
+            ]
            }
           }
          }
         }
        ]
-      }
+      },
+      "state": "OPEN"
      },
      {
-      "number": 1203,
-      "title": "Dark mode for the settings page",
-      "url": "https://github.com/acme/web/pull/1203",
+      "number": 482,
+      "title": "Retry webhook deliveries with exponential backoff",
+      "url": "https://github.com/acme/api/pull/482",
       "isDraft": false,
-      "reviewDecision": null,
-      "updatedAt": "2026-01-10T13:30:00Z",
+      "reviewDecision": "APPROVED",
+      "updatedAgo": 2400,
+      "createdAgo": 175200,
+      "headRefName": "you/retry-482",
+      "baseRefName": "main",
+      "headRefOid": "2434bdc25f6f734091aec461ed4bd9dc075c06c6",
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "CLEAN",
+      "author": {
+       "login": "you"
+      },
       "repository": {
-       "name": "web",
+       "name": "api",
+       "nameWithOwner": "acme/api",
        "owner": {
         "login": "acme"
-       }
+       },
+       "squashMergeAllowed": true,
+       "mergeCommitAllowed": true,
+       "rebaseMergeAllowed": false
+      },
+      "latestOpinionatedReviews": {
+       "nodes": [
+        {
+         "state": "APPROVED",
+         "author": {
+          "login": "mira"
+         }
+        },
+        {
+         "state": "APPROVED",
+         "author": {
+          "login": "dev-sam"
+         }
+        }
+       ]
+      },
+      "reviewRequests": {
+       "nodes": []
       },
       "commits": {
        "nodes": [
         {
          "commit": {
           "statusCheckRollup": {
-           "state": "SUCCESS",
+           "contexts": {
+            "checkRunCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 14
+             },
+             {
+              "state": "SKIPPED",
+              "count": 6
+             }
+            ],
+            "statusContextCountsByState": [],
+            "nodes": [
+             {
+              "__typename": "CheckRun",
+              "name": "build",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "lint",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "typecheck",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "integration tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "docs",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "license scan",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "container image",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "e2e (webkit)",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "bundle size",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "coverage",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "schema check",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "codeql",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests (arm64)",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "deploy staging",
+              "status": "COMPLETED",
+              "conclusion": "SKIPPED"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "release notes",
+              "status": "COMPLETED",
+              "conclusion": "SKIPPED"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "benchmarks",
+              "status": "COMPLETED",
+              "conclusion": "SKIPPED"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "nightly fuzz",
+              "status": "COMPLETED",
+              "conclusion": "SKIPPED"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "publish",
+              "status": "COMPLETED",
+              "conclusion": "SKIPPED"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "canary",
+              "status": "COMPLETED",
+              "conclusion": "SKIPPED"
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      },
+      "state": "OPEN"
+     },
+     {
+      "number": 1203,
+      "title": "Dark mode for the settings page",
+      "url": "https://github.com/acme/web/pull/1203",
+      "isDraft": false,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "updatedAgo": 10800,
+      "createdAgo": 183600,
+      "headRefName": "you/dark-1203",
+      "baseRefName": "main",
+      "headRefOid": "ba311f76384614da7abcb9ff39a74305f8057b57",
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "BLOCKED",
+      "author": {
+       "login": "you"
+      },
+      "repository": {
+       "name": "web",
+       "nameWithOwner": "acme/web",
+       "owner": {
+        "login": "acme"
+       },
+       "squashMergeAllowed": true,
+       "mergeCommitAllowed": true,
+       "rebaseMergeAllowed": false
+      },
+      "latestOpinionatedReviews": {
+       "nodes": []
+      },
+      "reviewRequests": {
+       "nodes": [
+        {
+         "requestedReviewer": {
+          "login": "design-team"
+         }
+        }
+       ]
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": {
            "contexts": {
             "checkRunCountsByState": [
              {
@@ -118,13 +443,88 @@
               "count": 4
              }
             ],
-            "statusContextCountsByState": []
+            "statusContextCountsByState": [],
+            "nodes": [
+             {
+              "__typename": "CheckRun",
+              "name": "build",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "lint",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "e2e (chromium)",
+              "status": "IN_PROGRESS",
+              "conclusion": null
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "e2e (firefox)",
+              "status": "IN_PROGRESS",
+              "conclusion": null
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "visual diff",
+              "status": "IN_PROGRESS",
+              "conclusion": null
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "a11y",
+              "status": "IN_PROGRESS",
+              "conclusion": null
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "perf budget",
+              "status": "IN_PROGRESS",
+              "conclusion": null
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "deploy preview",
+              "status": "QUEUED",
+              "conclusion": null
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "smoke",
+              "status": "QUEUED",
+              "conclusion": null
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "sbom",
+              "status": "QUEUED",
+              "conclusion": null
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "sign",
+              "status": "QUEUED",
+              "conclusion": null
+             }
+            ]
            }
           }
          }
         }
        ]
-      }
+      },
+      "state": "OPEN"
      },
      {
       "number": 1198,
@@ -132,19 +532,37 @@
       "url": "https://github.com/acme/web/pull/1198",
       "isDraft": true,
       "reviewDecision": null,
-      "updatedAt": "2026-01-09T10:00:00Z",
+      "updatedAgo": 345600,
+      "createdAgo": 518400,
+      "headRefName": "you/upgrade-1198",
+      "baseRefName": "main",
+      "headRefOid": "aa37bd4d61f5d896e0747961b0ab108d26cde369",
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "DRAFT",
+      "author": {
+       "login": "you"
+      },
       "repository": {
        "name": "web",
+       "nameWithOwner": "acme/web",
        "owner": {
         "login": "acme"
-       }
+       },
+       "squashMergeAllowed": true,
+       "mergeCommitAllowed": true,
+       "rebaseMergeAllowed": false
+      },
+      "latestOpinionatedReviews": {
+       "nodes": []
+      },
+      "reviewRequests": {
+       "nodes": []
       },
       "commits": {
        "nodes": [
         {
          "commit": {
           "statusCheckRollup": {
-           "state": "SUCCESS",
            "contexts": {
             "checkRunCountsByState": [
              {
@@ -156,13 +574,76 @@
               "count": 1
              }
             ],
-            "statusContextCountsByState": []
+            "statusContextCountsByState": [],
+            "nodes": [
+             {
+              "__typename": "CheckRun",
+              "name": "build",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "lint",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "typecheck",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "integration tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "docs",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "license scan",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "container image",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "e2e (webkit)",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "size check",
+              "status": "COMPLETED",
+              "conclusion": "CANCELLED"
+             }
+            ]
            }
           }
          }
         }
        ]
-      }
+      },
+      "state": "OPEN"
      },
      {
       "number": 57,
@@ -170,19 +651,43 @@
       "url": "https://github.com/acme/infra/pull/57",
       "isDraft": false,
       "reviewDecision": "REVIEW_REQUIRED",
-      "updatedAt": "2026-01-08T09:00:00Z",
+      "updatedAgo": 1641600,
+      "createdAgo": 1814400,
+      "headRefName": "you/pin-57",
+      "baseRefName": "main",
+      "headRefOid": "d75565977f602d2a294852e1f42c9b346dc5360a",
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "BLOCKED",
+      "author": {
+       "login": "you"
+      },
       "repository": {
        "name": "infra",
+       "nameWithOwner": "acme/infra",
        "owner": {
         "login": "acme"
-       }
+       },
+       "squashMergeAllowed": true,
+       "mergeCommitAllowed": true,
+       "rebaseMergeAllowed": false
+      },
+      "latestOpinionatedReviews": {
+       "nodes": []
+      },
+      "reviewRequests": {
+       "nodes": [
+        {
+         "requestedReviewer": {
+          "login": "ops"
+         }
+        }
+       ]
       },
       "commits": {
        "nodes": [
         {
          "commit": {
           "statusCheckRollup": {
-           "state": "SUCCESS",
            "contexts": {
             "checkRunCountsByState": [
              {
@@ -194,13 +699,58 @@
               "count": 1
              }
             ],
-            "statusContextCountsByState": []
+            "statusContextCountsByState": [],
+            "nodes": [
+             {
+              "__typename": "CheckRun",
+              "name": "build",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "lint",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "typecheck",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "integration tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "docs",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "dependency review",
+              "status": "COMPLETED",
+              "conclusion": "NEUTRAL"
+             }
+            ]
            }
           }
          }
         }
        ]
-      }
+      },
+      "state": "OPEN"
      },
      {
       "number": 311,
@@ -208,19 +758,44 @@
       "url": "https://github.com/octo-labs/parser/pull/311",
       "isDraft": false,
       "reviewDecision": "APPROVED",
-      "updatedAt": "2026-01-10T11:00:00Z",
+      "updatedAgo": 18000,
+      "createdAgo": 190800,
+      "headRefName": "you/handle-311",
+      "baseRefName": "main",
+      "headRefOid": "c068dd52a6ef8492ff3ee3acec90bc24923849cd",
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "CLEAN",
+      "author": {
+       "login": "you"
+      },
       "repository": {
        "name": "parser",
+       "nameWithOwner": "octo-labs/parser",
        "owner": {
         "login": "octo-labs"
-       }
+       },
+       "squashMergeAllowed": false,
+       "mergeCommitAllowed": true,
+       "rebaseMergeAllowed": true
+      },
+      "latestOpinionatedReviews": {
+       "nodes": [
+        {
+         "state": "APPROVED",
+         "author": {
+          "login": "ken"
+         }
+        }
+       ]
+      },
+      "reviewRequests": {
+       "nodes": []
       },
       "commits": {
        "nodes": [
         {
          "commit": {
           "statusCheckRollup": {
-           "state": "SUCCESS",
            "contexts": {
             "checkRunCountsByState": [
              {
@@ -233,13 +808,45 @@
               "state": "SUCCESS",
               "count": 1
              }
+            ],
+            "nodes": [
+             {
+              "__typename": "CheckRun",
+              "name": "build",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "lint",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "typecheck",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "StatusContext",
+              "context": "ci/legacy",
+              "state": "SUCCESS"
+             }
             ]
            }
           }
          }
         }
        ]
-      }
+      },
+      "state": "OPEN"
      },
      {
       "number": 309,
@@ -247,19 +854,37 @@
       "url": "https://github.com/octo-labs/parser/pull/309",
       "isDraft": false,
       "reviewDecision": null,
-      "updatedAt": "2026-01-10T08:00:00Z",
+      "updatedAgo": 93600,
+      "createdAgo": 266400,
+      "headRefName": "you/fuzz-309",
+      "baseRefName": "main",
+      "headRefOid": "4750a8b9c268bfa6f0621b34c3abe74e73bcf18b",
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "UNSTABLE",
+      "author": {
+       "login": "you"
+      },
       "repository": {
        "name": "parser",
+       "nameWithOwner": "octo-labs/parser",
        "owner": {
         "login": "octo-labs"
-       }
+       },
+       "squashMergeAllowed": true,
+       "mergeCommitAllowed": true,
+       "rebaseMergeAllowed": false
+      },
+      "latestOpinionatedReviews": {
+       "nodes": []
+      },
+      "reviewRequests": {
+       "nodes": []
       },
       "commits": {
        "nodes": [
         {
          "commit": {
           "statusCheckRollup": {
-           "state": "SUCCESS",
            "contexts": {
             "checkRunCountsByState": [
              {
@@ -271,13 +896,34 @@
               "count": 1
              }
             ],
-            "statusContextCountsByState": []
+            "statusContextCountsByState": [],
+            "nodes": [
+             {
+              "__typename": "CheckRun",
+              "name": "build",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "fuzz (nightly)",
+              "status": "PENDING",
+              "conclusion": null
+             }
+            ]
            }
           }
          }
         }
        ]
-      }
+      },
+      "state": "OPEN"
      },
      {
       "number": 18,
@@ -285,12 +931,31 @@
       "url": "https://github.com/you/dotfiles/pull/18",
       "isDraft": false,
       "reviewDecision": null,
-      "updatedAt": "2026-01-07T09:00:00Z",
+      "updatedAgo": 777600,
+      "createdAgo": 950400,
+      "headRefName": "you/switch-18",
+      "baseRefName": "main",
+      "headRefOid": "a00875644e64b55e8a16d147d8e81c0fe1e7705f",
+      "mergeable": "MERGEABLE",
+      "mergeStateStatus": "CLEAN",
+      "author": {
+       "login": "you"
+      },
       "repository": {
        "name": "dotfiles",
+       "nameWithOwner": "you/dotfiles",
        "owner": {
         "login": "you"
-       }
+       },
+       "squashMergeAllowed": true,
+       "mergeCommitAllowed": true,
+       "rebaseMergeAllowed": false
+      },
+      "latestOpinionatedReviews": {
+       "nodes": []
+      },
+      "reviewRequests": {
+       "nodes": []
       },
       "commits": {
        "nodes": [
@@ -300,7 +965,8 @@
          }
         }
        ]
-      }
+      },
+      "state": "OPEN"
      },
      {
       "number": 42,
@@ -308,19 +974,37 @@
       "url": "https://github.com/you/notes-cli/pull/42",
       "isDraft": true,
       "reviewDecision": null,
-      "updatedAt": "2026-01-06T09:00:00Z",
+      "updatedAgo": 2678400,
+      "createdAgo": 2851200,
+      "headRefName": "you/add-42",
+      "baseRefName": "main",
+      "headRefOid": "bb03583bd45ead49fb706e2f9d6ca8a9859a745a",
+      "mergeable": "CONFLICTING",
+      "mergeStateStatus": "DRAFT",
+      "author": {
+       "login": "you"
+      },
       "repository": {
        "name": "notes-cli",
+       "nameWithOwner": "you/notes-cli",
        "owner": {
         "login": "you"
-       }
+       },
+       "squashMergeAllowed": true,
+       "mergeCommitAllowed": true,
+       "rebaseMergeAllowed": false
+      },
+      "latestOpinionatedReviews": {
+       "nodes": []
+      },
+      "reviewRequests": {
+       "nodes": []
       },
       "commits": {
        "nodes": [
         {
          "commit": {
           "statusCheckRollup": {
-           "state": "SUCCESS",
            "contexts": {
             "checkRunCountsByState": [
              {
@@ -332,13 +1016,40 @@
               "count": 1
              }
             ],
-            "statusContextCountsByState": []
+            "statusContextCountsByState": [],
+            "nodes": [
+             {
+              "__typename": "CheckRun",
+              "name": "build",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "unit tests",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "lint",
+              "status": "COMPLETED",
+              "conclusion": "SUCCESS"
+             },
+             {
+              "__typename": "CheckRun",
+              "name": "e2e (chromium)",
+              "status": "IN_PROGRESS",
+              "conclusion": null
+             }
+            ]
            }
           }
          }
         }
        ]
-      }
+      },
+      "state": "OPEN"
      }
     ]
    }

@@ -9,16 +9,22 @@ import qs.Ui
 //
 // The bar shows a count of PRs with failing checks (or failing and running,
 // by setting); the panel lists every open PR, grouped by the org or user that
-// owns the repository, with a dot for its checks and a word saying where they
-// are. A click opens the PR in the browser.
+// owns the repository, newest activity first, with a dot for its checks, a
+// word saying where they are, and how long since it last moved.
+//
+// Hovering a row shows a summary. Clicking it opens the detail view: every
+// check by name, who reviewed and who is still asked, whether GitHub would
+// take a merge, and the buttons that act on the PR. The detail view is part
+// of the panel rather than a tooltip, because a tooltip cannot hold buttons:
+// it closes as the pointer leaves the row on its way to them.
 //
 // `bin/gh-prs` does the GitHub side through the user's own `gh` login, so
 // nothing here holds a token.
 //
-// Titles, owners and repository names are whatever someone typed on GitHub,
-// so every Text carries `textFormat: Text.PlainText`. Left on the default
-// AutoText, Qt decides for itself that a string looks like markup and renders
-// it as rich text, and rich text loads `<img src="http://...">`.
+// Titles, owners, branches and check names are whatever someone typed on
+// GitHub, so every Text carries `textFormat: Text.PlainText`. Left on the
+// default AutoText, Qt decides for itself that a string looks like markup and
+// renders it as rich text, and rich text loads `<img src="http://...">`.
 //
 // Glyphs are \u escapes rather than literal characters, so the source
 // survives editors and patches that mangle private-use codepoints.
@@ -44,7 +50,12 @@ Panel {
   // panel exists to draw, so these are picked rather than themed.
   readonly property color passing: "#5FA46B"
   readonly property color running: "#D7A63A"
+  readonly property color quiet: Qt.darker(foreground, 1.9)
   readonly property string fontFamily: bar ? bar.fontFamily : Style.font.family
+
+  // A PR nobody has touched in two weeks is either waiting on someone or
+  // forgotten; either way it should look different from this morning's.
+  readonly property int staleDays: 14
 
   // ------------------------------------------------------------- settings
 
@@ -68,6 +79,23 @@ Panel {
   property string errorText: ""
   property bool loading: false
   property int cursor: -1
+  // Ages are drawn against this rather than Date.now(), so they move when the
+  // list refreshes instead of never.
+  property real now: Date.now()
+
+  // The detail view. `selected` is the row that was clicked, which is enough
+  // to draw the header at once; `detail` is the fuller record fetched for it.
+  property string view: "list"
+  property var selected: null
+  property var detail: null
+  property bool detailLoading: false
+  property string detailError: ""
+  // "merge" or "close" while that action is waiting on its confirm click.
+  property string confirm: ""
+  property bool deleteBranch: false
+  property string actionBusy: ""
+  property var actionResult: null
+  property bool copied: false
 
   readonly property int badgeCount: {
     if (!payload || badgeMode === "none") return 0
@@ -86,8 +114,8 @@ Panel {
     return (b.failing || 0) + (badgeDrafts ? (b.failingDrafts || 0) : 0) > 0
   }
 
-  // See the herdr widget this one is modelled on: the bar hands a Panel zero
-  // width unless it is computed here, from content, never from a child.
+  // The bar hands a Panel zero width unless it is computed here, from
+  // content, never from a child.
   readonly property int badgeWidth: badgeCount > 0
     ? Math.max(Style.space(12), String(badgeCount).length * Style.space(6) + Style.space(8))
     : 0
@@ -102,9 +130,13 @@ Panel {
   // --------------------------------------------------------------- helpers
 
   // Only a PR page on some GitHub host is ever handed to xdg-open. The URL
-  // came from GitHub, but it still leaves this process as an argument.
+  // came from GitHub, but it still leaves this process as an argument. The
+  // script checks every argument again; this is the near end of the fence.
   function validUrl(url) {
     return /^https:\/\/[A-Za-z0-9.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[0-9]+$/.test(String(url))
+  }
+  function validRepo(repo) {
+    return /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/.test(String(repo))
   }
 
   function plain(s) {
@@ -123,6 +155,36 @@ Panel {
     Util.execArgv(["xdg-open", pr.url])
     close()
   }
+
+  // ---------------------------------------------------------------- dates
+
+  function ageSeconds(iso) {
+    var t = Date.parse(iso)
+    return isNaN(t) ? 0 : Math.max(0, (root.now - t) / 1000)
+  }
+
+  function ago(seconds) {
+    var m = seconds / 60, h = m / 60, d = h / 24
+    if (m < 1) return "now"
+    if (h < 1) return Math.floor(m) + "m"
+    if (d < 1) return Math.floor(h) + "h"
+    if (d < 14) return Math.floor(d) + "d"
+    if (d < 60) return Math.floor(d / 7) + "w"
+    if (d < 365) return Math.floor(d / 30) + "mo"
+    return Math.floor(d / 365) + "y"
+  }
+
+  function stale(pr) {
+    return pr && ageSeconds(pr.updatedAt) > root.staleDays * 86400
+  }
+
+  function when(iso) {
+    if (!iso) return ""
+    var d = new Date(iso)
+    return Qt.formatDateTime(d, "d MMM yyyy HH:mm") + "  (" + ago(ageSeconds(iso)) + " ago)"
+  }
+
+  // ------------------------------------------------------------- the list
 
   // Owner headings and PR rows in one flat list, so one ListView scrolls the
   // lot and the cursor can step over the headings.
@@ -156,22 +218,17 @@ Panel {
     list.positionViewAtIndex(next, ListView.Contain)
   }
 
-  function activateCursor() {
-    if (isPr(cursor)) openPr(rows[cursor])
-  }
-
-  function stateColor(pr) {
-    if (!pr) return root.foreground
-    if (pr.state === "failing") return root.urgent
-    if (pr.state === "running") return root.running
-    if (pr.state === "passing") return root.passing
-    return Qt.darker(root.foreground, 1.9)
+  function stateColor(state) {
+    if (state === "failing") return root.urgent
+    if (state === "running") return root.running
+    if (state === "passing") return root.passing
+    return root.quiet
   }
 
   function reviewColor(review) {
     if (review === "approved") return root.passing
     if (review === "changes requested") return root.urgent
-    return Qt.darker(root.foreground, 1.9)
+    return root.quiet
   }
 
   function subtitleFor(pr) {
@@ -181,11 +238,37 @@ Panel {
     return s
   }
 
-  function ago(seconds) {
-    if (seconds < 90) return "just now"
-    var m = Math.round(seconds / 60)
-    if (m < 90) return m + " min ago"
-    return Math.round(m / 60) + " h ago"
+  function ageLabel(pr) {
+    if (!pr) return ""
+    var a = ago(ageSeconds(pr.updatedAt))
+    return stale(pr) ? "stale · " + a : a
+  }
+
+  // What a hover shows: enough to recognise the PR and see where it stands,
+  // without opening it.
+  function summaryText(pr) {
+    if (!pr || pr.kind !== "pr") return ""
+    var lines = [pr.repoFull + " #" + pr.number, pr.title, ""]
+    lines.push("by " + pr.author + (pr.draft ? "  ·  draft" : ""))
+    lines.push("updated " + when(pr.updatedAt))
+    lines.push("created " + when(pr.createdAt))
+    lines.push(pr.head + "  →  " + pr.base)
+    if (pr.review) lines.push("review: " + pr.review)
+    lines.push("checks: " + checkSummary(pr.checks))
+    lines.push("")
+    lines.push("Click for details and actions")
+    return plain(lines.join("\n"))
+  }
+
+  function checkSummary(c) {
+    if (!c || c.total === 0) return "none"
+    var parts = []
+    if (c.failing) parts.push(c.failing + " failing")
+    if (c.running) parts.push(c.running + " running")
+    if (c.passed) parts.push(c.passed + " passed")
+    if (c.skipped) parts.push(c.skipped + " skipped")
+    if (c.neutral) parts.push(c.neutral + " neutral")
+    return parts.join(", ")
   }
 
   function titleText() {
@@ -210,6 +293,7 @@ Panel {
   // stale and how stale.
   function applyPayload(text) {
     loading = false
+    root.now = Date.now()
     try {
       var data = JSON.parse(text)
       reachable = data.ok === true
@@ -227,8 +311,150 @@ Panel {
   function errorLine() {
     var s = errorText !== "" ? errorText : "Could not reach GitHub."
     if (payload && payload.fetchedAt)
-      s += "  ·  from " + ago(Date.now() / 1000 - payload.fetchedAt)
+      s += "  ·  from " + ago(root.now / 1000 - payload.fetchedAt) + " ago"
     return s
+  }
+
+  // ------------------------------------------------------ the detail view
+
+  function showDetail(pr) {
+    if (!pr || pr.kind !== "pr" || !validRepo(pr.repoFull)) return
+    selected = pr
+    detail = null
+    detailError = ""
+    confirm = ""
+    deleteBranch = false
+    actionResult = null
+    copied = false
+    view = "detail"
+    loadDetail()
+  }
+
+  function loadDetail() {
+    if (!selected) return
+    detailLoading = true
+    detailProc.running = false
+    detailProc.command = [root.script, "detail", selected.repoFull, String(selected.number)]
+    detailProc.running = true
+  }
+
+  // A reply for a PR that is no longer the one on screen is dropped: the user
+  // clicked through to another while this one was loading.
+  function applyDetail(text) {
+    detailLoading = false
+    try {
+      var data = JSON.parse(text)
+      if (!data.ok) { detailError = data.error || "could not load this PR"; return }
+      var pr = data.pr
+      if (!selected || pr.repoFull !== selected.repoFull || pr.number !== selected.number) return
+      detail = pr
+      detailError = ""
+    } catch (e) {
+      detailError = "unexpected output from gh-prs"
+    }
+  }
+
+  function back() {
+    if (confirm !== "") { confirm = ""; return }
+    view = "list"
+    selected = null
+    detail = null
+    Qt.callLater(function() { keyCatcher.forceActiveFocus() })
+  }
+
+  // The record the detail view draws: the fetched one once it is here, the
+  // list's row until then.
+  readonly property var shown: detail || selected
+
+  function mergeStateText(s) {
+    if (s === "CLEAN") return "ready to merge"
+    if (s === "BLOCKED") return "blocked by required reviews, checks or rules"
+    if (s === "BEHIND") return "behind the base branch"
+    if (s === "DIRTY") return "conflicts with the base branch"
+    if (s === "UNSTABLE") return "mergeable, but a non-required check is not passing"
+    if (s === "HAS_HOOKS") return "mergeable, with pre-receive hooks"
+    if (s === "DRAFT") return "draft"
+    return "GitHub is still working it out"
+  }
+
+  function reviewLine(d) {
+    if (!d) return ""
+    var parts = []
+    if (d.review) parts.push(d.review)
+    if (d.approvedBy && d.approvedBy.length) parts.push("approved by " + d.approvedBy.join(", "))
+    if (d.changesBy && d.changesBy.length) parts.push("changes from " + d.changesBy.join(", "))
+    if (d.requested && d.requested.length) parts.push("waiting on " + d.requested.join(", "))
+    return parts.length ? parts.join("  ·  ") : "no reviews"
+  }
+
+  readonly property bool canMerge: !!detail && detail.open && detail.mergeBlock === ""
+    && actionBusy === "" && /^[0-9a-f]{40}$/.test(detail.headSha || "")
+  readonly property bool canClose: !!detail && detail.open && actionBusy === ""
+
+  function methodName(m) {
+    if (m === "merge") return "merge commit"
+    return m || ""
+  }
+
+  function mergeLabel() {
+    if (actionBusy === "merge") return "Merging…"
+    return detail && detail.mergeMethod ? "Merge (" + methodName(detail.mergeMethod) + ")" : "Merge"
+  }
+
+  // A write takes two clicks: the button only arms it, and the confirm row
+  // says exactly what will happen before the second click does it.
+  function armMerge() {
+    if (!canMerge) return
+    actionResult = null
+    confirm = "merge"
+  }
+
+  function armClose() {
+    if (!canClose) return
+    actionResult = null
+    deleteBranch = false
+    confirm = "close"
+  }
+
+  // The SHA is the one the detail view showed. If the branch has moved since,
+  // GitHub refuses the merge rather than taking a commit nobody looked at.
+  function doMerge() {
+    if (!canMerge || confirm !== "merge" || actionProc.running) return
+    var d = detail
+    confirm = ""
+    actionBusy = "merge"
+    actionProc.command = [root.script, "merge", d.repoFull, String(d.number), d.mergeMethod, d.headSha]
+    actionProc.running = true
+  }
+
+  function doClose() {
+    if (!canClose || confirm !== "close" || actionProc.running) return
+    var d = detail
+    var command = [root.script, "close", d.repoFull, String(d.number)]
+    if (deleteBranch) command.push("delete-branch")
+    confirm = ""
+    actionBusy = "close"
+    actionProc.command = command
+    actionProc.running = true
+  }
+
+  function doCopy() {
+    var pr = shown
+    if (!pr || !validUrl(pr.url) || copyProc.running) return
+    copyProc.command = [root.script, "copy", pr.url]
+    copyProc.running = true
+  }
+
+  function applyAction(text) {
+    actionBusy = ""
+    try {
+      var data = JSON.parse(text)
+      actionResult = { ok: data.ok === true, text: data.ok ? data.message : data.error }
+    } catch (e) {
+      actionResult = { ok: false, text: "unexpected output from gh-prs" }
+    }
+    loadDetail()
+    refresh()
   }
 
   // Opening the panel refreshes it, unless the list is only seconds old: a
@@ -236,7 +462,13 @@ Panel {
   // just finished is as good as the one this would start.
   onOpenedChanged: {
     if (opened && !(payload && Date.now() / 1000 - payload.fetchedAt < 15)) refresh()
-    else cursor = -1
+    if (!opened) {
+      cursor = -1
+      view = "list"
+      selected = null
+      detail = null
+      confirm = ""
+    }
   }
 
   Process {
@@ -246,6 +478,39 @@ Panel {
     }
   }
 
+  Process {
+    id: detailProc
+    stdout: StdioCollector {
+      onStreamFinished: root.applyDetail(text)
+    }
+  }
+
+  Process {
+    id: actionProc
+    stdout: StdioCollector {
+      onStreamFinished: root.applyAction(text)
+    }
+  }
+
+  Process {
+    id: copyProc
+    stdout: StdioCollector {
+      onStreamFinished: {
+        try {
+          var data = JSON.parse(text)
+          if (data.ok) { root.copied = true; copiedTimer.restart() }
+          else root.actionResult = { ok: false, text: data.error }
+        } catch (e) {}
+      }
+    }
+  }
+
+  Timer {
+    id: copiedTimer
+    interval: 1500
+    onTriggered: root.copied = false
+  }
+
   Timer {
     interval: root.intervalSeconds * 1000
     running: true
@@ -253,6 +518,7 @@ Panel {
     triggeredOnStart: true
     onTriggered: root.refresh()
   }
+
 
   BarIconButton {
     id: button
@@ -319,15 +585,31 @@ Panel {
     contentWidth: panel.fittedContentWidth(Style.space(480))
     contentHeight: panel.fittedContentHeight(content.implicitHeight)
 
+    // Escape steps back one level: out of a confirm, then out of the detail
+    // view, and only then closes the panel. Clicking outside closes it from
+    // anywhere.
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
-      onCloseRequested: root.close()
-      onMoveRequested: function(dx, dy) { if (dy !== 0) root.moveCursor(dy) }
-      onActivateRequested: root.activateCursor()
+      onCloseRequested: root.view === "detail" ? root.back() : root.close()
+      onMoveRequested: function(dx, dy) {
+        if (root.view === "list" && dy !== 0) root.moveCursor(dy)
+        else if (root.view === "detail" && dx < 0) root.back()
+      }
+      onActivateRequested: {
+        if (root.view === "list" && root.isPr(root.cursor)) root.showDetail(root.rows[root.cursor])
+      }
       onTextKey: function(t) {
-        if (t === "o") root.activateCursor()
-        else if (t === "r") root.refresh()
+        if (t === "r") { root.refresh(); if (root.view === "detail") root.loadDetail() }
+        else if (t === "o") {
+          if (root.view === "detail") root.openPr(root.shown)
+          else if (root.isPr(root.cursor)) root.openPr(root.rows[root.cursor])
+        }
+        else if (t === "c" && root.view === "detail") root.doCopy()
+        // These only arm the action and show what it will do; the confirm
+        // itself is a click, so no run of keystrokes can merge or close.
+        else if (t === "m" && root.view === "detail") root.armMerge()
+        else if (t === "x" && root.view === "detail") root.armClose()
       }
 
       Column {
@@ -339,7 +621,9 @@ Panel {
 
         PanelSectionHeader {
           width: parent.width
-          text: root.titleText() + (root.loading ? "  …" : "")
+          text: root.view === "detail" && root.shown
+            ? root.shown.repoFull + " #" + root.shown.number
+            : root.titleText() + (root.loading ? "  …" : "")
           textFormat: Text.PlainText
           elide: Text.ElideRight
           foreground: root.foreground
@@ -350,8 +634,8 @@ Panel {
 
         Item {
           width: parent.width
-          height: root.reachable ? 0 : staleWarning.implicitHeight + Style.space(6)
-          visible: !root.reachable
+          height: !root.reachable && root.view === "list" ? staleWarning.implicitHeight + Style.space(6) : 0
+          visible: height > 0
 
           Text {
             id: staleWarning
@@ -371,7 +655,7 @@ Panel {
         ListView {
           id: list
           width: parent.width
-          visible: root.rows.length > 0
+          visible: root.view === "list" && root.rows.length > 0
           clip: true
           model: root.rows
           spacing: Style.space(1)
@@ -386,7 +670,7 @@ Panel {
             return Math.max(Style.space(140),
                             panel.availableCardHeight - panel.verticalContentInset - chrome)
           }
-          height: Math.min(contentHeight, cap)
+          height: visible ? Math.min(contentHeight, cap) : 0
 
           delegate: Item {
             id: row
@@ -396,6 +680,7 @@ Panel {
             readonly property bool isOwner: modelData.kind === "owner"
             readonly property bool active: !isOwner
               && (root.cursor === row.index || rowMouse.containsMouse)
+            readonly property bool isStale: !isOwner && root.stale(modelData)
 
             width: list.width - (list.interactive ? Style.space(10) : 0)
             height: isOwner
@@ -436,16 +721,31 @@ Panel {
               anchors.fill: parent
               hoverEnabled: true
               cursorShape: Qt.PointingHandCursor
+              acceptedButtons: Qt.LeftButton | Qt.MiddleButton
               onContainsMouseChanged: if (containsMouse) root.cursor = row.index
-              onClicked: root.openPr(row.modelData)
+              // Middle click goes straight to the browser, the way it would
+              // on a link.
+              onClicked: function(mouse) {
+                if (mouse.button === Qt.MiddleButton) root.openPr(row.modelData)
+                else root.showDetail(row.modelData)
+              }
             }
 
-            // A draft is drawn at reduced strength throughout: it is yours,
-            // it is open, and you have already said it is not ready.
+            PanelToolTip {
+              visible: rowMouse.containsMouse && !row.isOwner && root.view === "list"
+              text: root.summaryText(row.modelData)
+              fontFamily: root.fontFamily
+            }
+
+            // Drafts and stale PRs are drawn at reduced strength: one you
+            // have said is not ready, the other nobody has touched in weeks.
+            // The hovered row comes back up so it can be read.
             Row {
               id: prContent
               visible: !row.isOwner
-              opacity: row.modelData.draft ? 0.5 : 1
+              opacity: row.active ? 1
+                : row.modelData.draft ? 0.5
+                : row.isStale ? 0.6 : 1
               anchors.left: parent.left
               anchors.right: parent.right
               anchors.verticalCenter: parent.verticalCenter
@@ -465,7 +765,7 @@ Panel {
                   textFormat: Text.PlainText
                   font.family: root.fontFamily
                   font.pixelSize: Style.space(7)
-                  color: root.stateColor(row.modelData)
+                  color: root.stateColor(row.modelData.state)
                 }
               }
 
@@ -500,9 +800,7 @@ Panel {
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
                     font.bold: row.modelData.state === "failing"
-                    color: row.modelData.state === "none"
-                      ? Qt.darker(root.foreground, 1.9)
-                      : root.stateColor(row.modelData)
+                    color: root.stateColor(row.modelData.state)
                   }
                 }
 
@@ -513,24 +811,40 @@ Panel {
                   Text {
                     id: subtitle
                     anchors.left: parent.left
-                    anchors.right: review.left
+                    anchors.right: reviewText.left
                     anchors.rightMargin: Style.space(8)
                     text: row.isOwner ? "" : root.subtitleFor(row.modelData)
                     textFormat: Text.PlainText
                     elide: Text.ElideRight
                     font.family: root.fontFamily
                     font.pixelSize: Style.font.caption
-                    color: Qt.darker(root.foreground, 1.9)
+                    color: root.quiet
                   }
 
-                  Text {
-                    id: review
+                  // Review decision, then the age, so the right edge of
+                  // every row ends with how long since it moved.
+                  Row {
+                    id: reviewText
                     anchors.right: parent.right
-                    text: row.isOwner ? "" : (row.modelData.review || "")
-                    textFormat: Text.PlainText
-                    font.family: root.fontFamily
-                    font.pixelSize: Style.font.caption
-                    color: root.reviewColor(row.modelData.review)
+                    spacing: Style.space(8)
+
+                    Text {
+                      visible: text !== ""
+                      text: row.isOwner ? "" : (row.modelData.review || "")
+                      textFormat: Text.PlainText
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                      color: root.reviewColor(row.modelData.review)
+                    }
+
+                    Text {
+                      text: row.isOwner ? "" : root.ageLabel(row.modelData)
+                      textFormat: Text.PlainText
+                      font.family: root.fontFamily
+                      font.pixelSize: Style.font.caption
+                      font.italic: row.isStale
+                      color: row.isStale ? root.running : root.quiet
+                    }
                   }
                 }
               }
@@ -542,7 +856,7 @@ Panel {
 
         Item {
           width: parent.width
-          height: root.rows.length === 0 && root.reachable
+          height: root.view === "list" && root.rows.length === 0 && root.reachable
             ? empty.implicitHeight + Style.space(16) : 0
           visible: height > 0
 
@@ -556,6 +870,348 @@ Panel {
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption
             color: Qt.darker(root.foreground, 1.8)
+          }
+        }
+
+        // ------------------------------------------------------- detail
+
+        Flickable {
+          id: detailFlick
+          width: parent.width
+          visible: root.view === "detail" && !!root.shown
+          clip: true
+          contentWidth: width
+          contentHeight: detailColumn.implicitHeight
+          boundsBehavior: Flickable.StopAtBounds
+          interactive: contentHeight > height
+          ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+          height: visible
+            ? Math.min(contentHeight,
+                       Math.max(Style.space(140),
+                                panel.availableCardHeight - panel.verticalContentInset - Style.space(60)))
+            : 0
+
+          Column {
+            id: detailColumn
+            width: detailFlick.width - (detailFlick.interactive ? Style.space(10) : 0)
+            spacing: Style.space(8)
+
+            Text {
+              width: parent.width
+              text: root.shown ? root.shown.title : ""
+              textFormat: Text.PlainText
+              wrapMode: Text.Wrap
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              font.bold: true
+              color: root.foreground
+            }
+
+            // Label / value pairs, one per line, labels in one column.
+            Column {
+              width: parent.width
+              spacing: Style.space(3)
+
+              Repeater {
+                model: {
+                  var s = root.shown
+                  if (!s) return []
+                  var d = root.detail
+                  var out = [
+                    ["author", s.author + (s.draft ? "  ·  draft" : "")],
+                    ["updated", root.when(s.updatedAt)],
+                    ["created", root.when(s.createdAt)],
+                    ["branch", s.head + "  →  " + s.base
+                               + (d && d.headSha ? "  ·  " + d.headSha.substring(0, 7) : "")],
+                    ["review", d ? root.reviewLine(d) : (s.review || "…")]
+                  ]
+                  if (d) out.push(["merge", d.open
+                    ? d.mergeState + ": " + root.mergeStateText(d.mergeState)
+                    : d.prState.toLowerCase()])
+                  return out
+                }
+
+                Row {
+                  required property var modelData
+                  width: parent.width
+                  spacing: Style.space(8)
+
+                  Text {
+                    width: Style.space(56)
+                    text: modelData[0]
+                    textFormat: Text.PlainText
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    color: root.quiet
+                  }
+
+                  Text {
+                    width: parent.width - Style.space(64)
+                    text: modelData[1]
+                    textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    color: root.foreground
+                  }
+                }
+              }
+            }
+
+            PanelSeparator { width: parent.width }
+
+            // Checks: what is failing by name first, then what is still
+            // running, then a count of everything that is fine.
+            Text {
+              width: parent.width
+              text: root.shown ? "Checks  ·  " + root.shown.checks.label : ""
+              textFormat: Text.PlainText
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              color: root.shown ? root.stateColor(root.shown.checks.state) : root.foreground
+            }
+
+            Column {
+              width: parent.width
+              spacing: Style.space(2)
+              visible: !!root.detail
+
+              Repeater {
+                model: root.detail
+                  ? root.detail.failingNames.map(function(n) { return { name: n, state: "failing" } })
+                      .concat(root.detail.runningNames.map(function(n) { return { name: n, state: "running" } }))
+                  : []
+
+                Row {
+                  required property var modelData
+                  width: parent.width
+                  spacing: Style.space(6)
+
+                  Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: root.iconDot
+                    textFormat: Text.PlainText
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.space(5)
+                    color: root.stateColor(modelData.state)
+                  }
+
+                  Text {
+                    width: parent.width - Style.space(70)
+                    text: modelData.name
+                    textFormat: Text.PlainText
+                    elide: Text.ElideRight
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    color: root.foreground
+                  }
+
+                  Text {
+                    text: modelData.state
+                    textFormat: Text.PlainText
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.caption
+                    color: root.stateColor(modelData.state)
+                  }
+                }
+              }
+
+              Text {
+                width: parent.width
+                text: {
+                  var d = root.detail
+                  if (!d) return ""
+                  var c = d.checks, parts = []
+                  if (c.passed) parts.push(c.passed + " passed")
+                  if (c.skipped) parts.push(c.skipped + " skipped")
+                  if (c.neutral) parts.push(c.neutral + " neutral")
+                  var s = parts.join(", ")
+                  if (d.listedChecks < c.total)
+                    s += (s ? "  ·  " : "") + "names shown for the first "
+                      + d.listedChecks + " of " + c.total
+                  return s
+                }
+                visible: text !== ""
+                textFormat: Text.PlainText
+                wrapMode: Text.Wrap
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                color: root.quiet
+              }
+            }
+
+            Text {
+              width: parent.width
+              visible: root.detailLoading || root.detailError !== ""
+              text: root.detailError !== "" ? root.detailError : "Loading checks and reviews…"
+              textFormat: Text.PlainText
+              wrapMode: Text.Wrap
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              color: root.detailError !== "" ? root.urgent : root.quiet
+            }
+
+            PanelSeparator { width: parent.width }
+
+            // ----------------------------------------------- actions
+
+            Flow {
+              width: parent.width
+              spacing: Style.space(6)
+
+              Button {
+                text: "Back"
+                bordered: true
+                fontSize: Style.font.caption
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                onClicked: root.back()
+              }
+
+              Button {
+                text: "Open"
+                bordered: true
+                fontSize: Style.font.caption
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                tooltipText: "Open in the browser (o)"
+                onClicked: root.openPr(root.shown)
+              }
+
+              Button {
+                text: root.copied ? "Copied" : "Copy link"
+                bordered: true
+                fontSize: Style.font.caption
+                foreground: root.copied ? root.passing : root.foreground
+                fontFamily: root.fontFamily
+                tooltipText: "Copy the PR's URL (c)"
+                onClicked: root.doCopy()
+              }
+
+              Button {
+                text: root.mergeLabel()
+                bordered: true
+                enabled: root.canMerge
+                opacity: enabled ? 1 : 0.4
+                selected: root.confirm === "merge"
+                fontSize: Style.font.caption
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                onClicked: root.armMerge()
+              }
+
+              Button {
+                text: root.actionBusy === "close" ? "Closing…" : "Close PR"
+                bordered: true
+                enabled: root.canClose
+                opacity: enabled ? 1 : 0.4
+                selected: root.confirm === "close"
+                fontSize: Style.font.caption
+                foreground: root.foreground
+                fontFamily: root.fontFamily
+                onClicked: root.armClose()
+              }
+            }
+
+            // Why Merge is off, in the panel's words and then GitHub's.
+            Text {
+              width: parent.width
+              visible: !!root.detail && root.detail.mergeBlock !== "" && root.confirm === ""
+              text: root.detail
+                ? "Merge unavailable: " + root.detail.mergeBlock
+                  + (root.detail.open ? "  (" + root.detail.mergeState + ")" : "")
+                : ""
+              textFormat: Text.PlainText
+              wrapMode: Text.Wrap
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              color: root.quiet
+            }
+
+            // ----------------------------------------------- confirm
+
+            Rectangle {
+              width: parent.width
+              visible: root.confirm !== ""
+              height: visible ? confirmColumn.implicitHeight + Style.space(12) : 0
+              radius: Style.cornerRadius
+              color: Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.10)
+              border.width: 1
+              border.color: Qt.rgba(root.urgent.r, root.urgent.g, root.urgent.b, 0.5)
+
+              Column {
+                id: confirmColumn
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.margins: Style.space(6)
+                spacing: Style.space(6)
+
+                Text {
+                  width: parent.width
+                  text: {
+                    var d = root.detail
+                    if (!d) return ""
+                    if (root.confirm === "merge")
+                      return "Merge " + d.repoFull + "#" + d.number + " into " + d.base
+                        + " by " + root.methodName(d.mergeMethod) + ", at head " + d.headSha.substring(0, 7) + "?"
+                    return "Close " + d.repoFull + "#" + d.number + " without merging?\n“"
+                      + d.title + "”"
+                  }
+                  textFormat: Text.PlainText
+                  wrapMode: Text.Wrap
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  color: root.foreground
+                }
+
+                Toggle {
+                  width: parent.width
+                  visible: root.confirm === "close"
+                  label: "Also delete the branch " + (root.detail ? root.detail.head : "")
+                  checked: root.deleteBranch
+                  titleSize: Style.font.caption
+                  foreground: root.foreground
+                  fontFamily: root.fontFamily
+                  onClicked: root.deleteBranch = !root.deleteBranch
+                }
+
+                Row {
+                  spacing: Style.space(6)
+
+                  Button {
+                    text: "Cancel"
+                    bordered: true
+                    fontSize: Style.font.caption
+                    foreground: root.foreground
+                    fontFamily: root.fontFamily
+                    onClicked: root.confirm = ""
+                  }
+
+                  Button {
+                    text: root.confirm === "merge" ? "Confirm merge" : "Confirm close"
+                    bordered: true
+                    fontSize: Style.font.caption
+                    foreground: root.urgent
+                    fontFamily: root.fontFamily
+                    onClicked: root.confirm === "merge" ? root.doMerge() : root.doClose()
+                  }
+                }
+              }
+            }
+
+            Text {
+              width: parent.width
+              visible: !!root.actionResult
+              text: root.actionResult ? root.actionResult.text : ""
+              textFormat: Text.PlainText
+              wrapMode: Text.Wrap
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.caption
+              font.bold: true
+              color: root.actionResult && root.actionResult.ok ? root.passing : root.urgent
+            }
           }
         }
       }

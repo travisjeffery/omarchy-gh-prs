@@ -1,23 +1,41 @@
 #!/bin/bash
 # gh-prs — your open GitHub pull requests and their checks, as JSON.
 #
-#   list [query]  every open PR the search finds, grouped by owner
-#   demo on|off   invented PRs instead of yours, for screenshots
+#   list [query]                    every open PR the search finds, by owner
+#   detail <owner/repo> <n>         one PR in full: checks by name, reviewers,
+#                                   mergeability and the merge method to use
+#   merge <owner/repo> <n> <method> <sha>
+#                                   merge it, only if its head is still <sha>
+#   close <owner/repo> <n> [delete-branch]
+#                                   close it, and delete its branch if asked
+#   copy <url>                      put a PR's URL on the clipboard
+#   demo on|off                     invented PRs instead of yours, for screenshots
 #
-# One GraphQL search, paged, per refresh. Check states come from each PR's
-# head commit status rollup, as counts per state, so a PR with eighty checks
-# costs no more than one with two. The search is `is:pr is:open author:@me
-# archived:false` unless the panel passes its own.
+# The list is one GraphQL search, paged, per refresh. Check states come from
+# each PR's head commit status rollup as counts per state, so a PR with eighty
+# checks costs no more than one with two. The search is `is:pr is:open
+# author:@me archived:false` unless the panel passes its own.
 #
-# Pages are 50 PRs, not GraphQL's maximum of 100: a full page with rollups
-# runs close to GitHub's ten-second limit and fails with a 502 often enough to
-# notice, while two half pages do not.
+# What the list leaves out is what makes a search slow: check names, reviewers
+# and mergeability. With those in it, even 25-PR pages run into GitHub's
+# ten-second limit and come back 502 or 504 a fair share of the time, so they
+# are fetched by `detail`, for one PR, when its detail view is opened. That is
+# also when they matter, and they are fresh then, which is what a Merge button
+# should be looking at.
+#
+# Pages are 50 PRs, not GraphQL's maximum of 100, for the same reason, and a
+# gateway error is retried once before it is reported.
+#
+# Merging never passes --admin, and always passes --match-head-commit with the
+# SHA the panel showed, so a commit pushed after the detail view was loaded is
+# never merged unseen: GitHub refuses the merge instead.
 #
 # Every failure is still a JSON object with `ok: false` and a one-line
-# `error`, so the panel can keep showing what it had and say why it is stale.
+# `error`, so the panel can keep showing what it had and say why.
 #
 # Titles, repository and owner names come from GitHub and are printed as JSON
-# strings, drawn as plain text, and never handed to a shell.
+# strings, drawn as plain text, and never handed to a shell. Arguments coming
+# back from the panel are checked for shape before they reach a command line.
 
 set -euo pipefail
 umask 077
@@ -27,31 +45,42 @@ readonly DEMO_FILE="$CACHE_DIR/demo"
 readonly DEFAULT_QUERY="is:pr is:open author:@me archived:false"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
+readonly DEMO_DATA="$SCRIPT_DIR/../assets/demo.json"
+
+json_string() {
+  printf '%s' "${1-}" | jq -Rs .
+}
 
 die() {
-  printf '{"ok":false,"error":%s,"groups":[]}\n' "$(printf '%s' "$1" | jq -Rs .)"
+  printf '{"ok":false,"error":%s,"groups":[]}\n' "$(json_string "$1")"
   exit 0
 }
 
-read -r -d '' QUERY <<'GRAPHQL' || true
+ok() {
+  printf '{"ok":true,"message":%s}\n' "$(json_string "$1")"
+  exit 0
+}
+
+valid_repo() { [[ "${1-}" =~ ^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$ ]]; }
+valid_number() { [[ "${1-}" =~ ^[0-9]{1,9}$ ]]; }
+valid_sha() { [[ "${1-}" =~ ^[0-9a-f]{40}$ ]]; }
+valid_method() { [[ "${1-}" =~ ^(merge|squash|rebase)$ ]]; }
+valid_url() { [[ "${1-}" =~ ^https://[A-Za-z0-9.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/pull/[0-9]+$ ]]; }
+
+read -r -d '' LIST_QUERY <<'GRAPHQL' || true
 query($q: String!, $endCursor: String) {
   search(query: $q, type: ISSUE, first: 50, after: $endCursor) {
-    issueCount
     pageInfo { hasNextPage endCursor }
     nodes {
       ... on PullRequest {
-        number
-        title
-        url
-        isDraft
-        reviewDecision
-        updatedAt
-        repository { name owner { login } }
+        number title url isDraft reviewDecision createdAt updatedAt
+        headRefName baseRefName
+        author { login }
+        repository { name nameWithOwner owner { login } }
         commits(last: 1) {
           nodes {
             commit {
               statusCheckRollup {
-                state
                 contexts(first: 0) {
                   checkRunCountsByState { state count }
                   statusContextCountsByState { state count }
@@ -66,7 +95,43 @@ query($q: String!, $endCursor: String) {
 }
 GRAPHQL
 
-# Pages of search results in, the panel's payload out.
+read -r -d '' DETAIL_QUERY <<'GRAPHQL' || true
+query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed
+    pullRequest(number: $number) {
+      number title url state isDraft reviewDecision createdAt updatedAt
+      headRefName baseRefName headRefOid mergeable mergeStateStatus
+      author { login }
+      repository { name nameWithOwner owner { login } }
+      latestOpinionatedReviews(first: 20) { nodes { state author { login } } }
+      reviewRequests(first: 20) {
+        nodes { requestedReviewer { ... on User { login } ... on Team { name } } }
+      }
+      commits(last: 1) {
+        nodes {
+          commit {
+            statusCheckRollup {
+              contexts(first: 100) {
+                checkRunCountsByState { state count }
+                statusContextCountsByState { state count }
+                nodes {
+                  __typename
+                  ... on CheckRun { name status conclusion }
+                  ... on StatusContext { context state }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+GRAPHQL
+
+# Shared by the list and the detail view, so the dot in a row and the
+# breakdown behind it can never disagree.
 #
 # A check counts against a PR when it ended badly: failed, cancelled, timed
 # out, waiting on someone to approve the run, never started, or left stale by
@@ -77,10 +142,10 @@ GRAPHQL
 # Failing outranks running: one red check already decides the PR, however many
 # are still going.
 # shellcheck disable=SC2016 # jq, not shell, expands these
-readonly TRANSFORM='
+readonly CHECKS='
   def failing: ["FAILURE","CANCELLED","TIMED_OUT","ACTION_REQUIRED","STARTUP_FAILURE","STALE","ERROR"];
-  def pending: ["PENDING","QUEUED","IN_PROGRESS","WAITING","EXPECTED"];
-  def rank: {failing: 0, running: 1, passing: 2, none: 3}[.];
+  def pending: ["PENDING","QUEUED","IN_PROGRESS","WAITING","EXPECTED","REQUESTED"];
+  def isin($list): . as $s | $list | index($s) != null;
 
   def review:
     if . == "APPROVED" then "approved"
@@ -88,54 +153,134 @@ readonly TRANSFORM='
     elif . == "REVIEW_REQUIRED" then "review required"
     else "" end;
 
-  def pr:
+  def checks:
     (.commits.nodes[0].commit.statusCheckRollup.contexts // {}) as $c
     | (($c.checkRunCountsByState // []) + ($c.statusContextCountsByState // [])) as $counts
-    | ([$counts[].count] | add // 0) as $total
-    | ([$counts[] | select(.state as $s | failing | index($s)) | .count] | add // 0) as $fail
-    | ([$counts[] | select(.state as $s | pending | index($s)) | .count] | add // 0) as $pend
-    | (if $total == 0 then "none"
-       elif $fail > 0 then "failing"
-       elif $pend > 0 then "running"
-       else "passing" end) as $state
+    | def n(f): [$counts[] | select(.state | f) | .count] | add // 0;
+      {
+        total: n(true),
+        failing: n(isin(failing)),
+        running: n(isin(pending)),
+        passed: n(. == "SUCCESS" or . == "COMPLETED"),
+        skipped: n(. == "SKIPPED"),
+        neutral: n(. == "NEUTRAL")
+      }
+    | .done = .total - .running
+    | .state = (if .total == 0 then "none"
+                elif .failing > 0 then "failing"
+                elif .running > 0 then "running"
+                else "passing" end)
+    | .label = (if .state == "failing" then "failing \(.failing)"
+                elif .state == "running" then "running \(.done)/\(.total)"
+                elif .state == "passing" then "passing"
+                else "no checks" end);
+
+  def summary:
+    checks as $k
     | {
-        number, title, url, updatedAt,
+        number, title, url, createdAt,
+        updatedAt: (.updatedAt // .createdAt),
         draft: .isDraft,
+        author: (.author.login // "ghost"),
         owner: .repository.owner.login,
         repo: .repository.name,
-        state: $state,
-        checks: {total: $total, failing: $fail, running: $pend, done: ($total - $pend)},
-        label: (if $state == "failing" then "failing \($fail)"
-                elif $state == "running" then "running \($total - $pend)/\($total)"
-                elif $state == "passing" then "passing"
-                else "no checks" end),
+        repoFull: .repository.nameWithOwner,
+        head: .headRefName,
+        base: .baseRefName,
+        state: $k.state,
+        label: $k.label,
+        checks: $k,
         review: (.reviewDecision | review)
       };
+'
 
-  [.[].data.search.nodes[] | select(.number != null) | pr] as $prs
+# shellcheck disable=SC2016
+readonly LIST_TRANSFORM="$CHECKS"'
+  [.[].data.search.nodes[] | select(.number != null) | summary] as $prs
+  | def count(f): [$prs[] | select(f)] | length;
+  {
+    ok: true,
+    error: "",
+    fetchedAt: now | floor,
+    total: ($prs | length),
+    failing: count(.state == "failing"),
+    running: count(.state == "running"),
+    passing: count(.state == "passing"),
+    none: count(.state == "none"),
+    drafts: count(.draft),
+    badge: {
+      failing: count(.state == "failing" and (.draft | not)),
+      running: count(.state == "running" and (.draft | not)),
+      failingDrafts: count(.state == "failing" and .draft),
+      runningDrafts: count(.state == "running" and .draft)
+    },
+    groups: ($prs
+      | group_by(.owner | ascii_downcase)
+      | map({
+          owner: .[0].owner,
+          failing: ([.[] | select(.state == "failing")] | length),
+          prs: (sort_by(.updatedAt) | reverse)
+        })
+      | sort_by(.prs[0].updatedAt) | reverse)
+  }
+'
+
+# The merge button is only live when GitHub would take the merge without an
+# admin override and the panel has nothing it would want to warn about first.
+# The first reason that applies is the one shown on the button.
+#
+# The method is squash when the repository allows it, then a merge commit,
+# then rebase: whatever the repository allows, in that order.
+# shellcheck disable=SC2016
+readonly DETAIL_TRANSFORM="$CHECKS"'
+  .data.repository as $r
+  | $r.pullRequest as $p
+  | ($p | summary) as $s
+  | ($p.commits.nodes[0].commit.statusCheckRollup.contexts.nodes // []) as $nodes
+  | [$nodes[]
+     | if .__typename == "CheckRun"
+       then {name, state: (if .status == "COMPLETED" then (.conclusion // "COMPLETED") else .status end)}
+       else {name: .context, state} end] as $runs
+  | ([$p.latestOpinionatedReviews.nodes[]? | select(.state == "APPROVED") | .author.login]) as $approved
+  | ([$p.latestOpinionatedReviews.nodes[]? | select(.state == "CHANGES_REQUESTED") | .author.login]) as $changes
+  | ([$p.reviewRequests.nodes[]?.requestedReviewer | .login // .name | select(. != null)]) as $requested
+  | (if $r.squashMergeAllowed then "squash"
+     elif $r.mergeCommitAllowed then "merge"
+     elif $r.rebaseMergeAllowed then "rebase"
+     else "" end) as $method
+  | ($p.mergeStateStatus // "UNKNOWN") as $ms
+  | (if $p.state == "MERGED" then "already merged"
+     elif $p.state == "CLOSED" then "closed"
+     elif $p.isDraft then "draft"
+     elif $p.mergeable == "CONFLICTING" or $ms == "DIRTY" then "conflicts with \($p.baseRefName)"
+     elif $s.checks.failing > 0 then "checks failing"
+     elif $s.checks.running > 0 then "checks running"
+     elif $p.reviewDecision == "CHANGES_REQUESTED" then "changes requested"
+     elif $p.reviewDecision == "REVIEW_REQUIRED" then "review required"
+     elif $ms == "BLOCKED" then "blocked by branch rules"
+     elif $ms == "BEHIND" then "behind \($p.baseRefName)"
+     elif $ms == "UNKNOWN" or $p.mergeable == "UNKNOWN" then "GitHub is still checking; refresh"
+     elif $method == "" then "no merge method allowed"
+     else "" end) as $block
   | {
       ok: true,
       error: "",
       fetchedAt: now | floor,
-      total: ($prs | length),
-      failing: ([$prs[] | select(.state == "failing")] | length),
-      running: ([$prs[] | select(.state == "running")] | length),
-      passing: ([$prs[] | select(.state == "passing")] | length),
-      none: ([$prs[] | select(.state == "none")] | length),
-      drafts: ([$prs[] | select(.draft)] | length),
-      badge: {
-        failing: ([$prs[] | select(.state == "failing" and (.draft | not))] | length),
-        running: ([$prs[] | select(.state == "running" and (.draft | not))] | length),
-        failingDrafts: ([$prs[] | select(.state == "failing" and .draft)] | length),
-        runningDrafts: ([$prs[] | select(.state == "running" and .draft)] | length)
-      },
-      groups: ($prs
-        | group_by(.owner | ascii_downcase)
-        | map({
-            owner: .[0].owner,
-            failing: ([.[] | select(.state == "failing")] | length),
-            prs: (sort_by(.updatedAt) | reverse | sort_by(.draft, (.state | rank)))
-          }))
+      pr: ($s + {
+        open: ($p.state == "OPEN"),
+        prState: $p.state,
+        headSha: $p.headRefOid,
+        mergeable: ($p.mergeable // "UNKNOWN"),
+        mergeState: $ms,
+        mergeMethod: $method,
+        mergeBlock: $block,
+        approvedBy: $approved,
+        changesBy: $changes,
+        requested: $requested,
+        failingNames: [$runs[] | select(.state | isin(failing)) | .name],
+        runningNames: [$runs[] | select(.state | isin(pending)) | .name],
+        listedChecks: ($runs | length)
+      })
     }
 '
 
@@ -150,37 +295,139 @@ explain() {
       echo "GitHub is unreachable (offline?)" ;;
     *"HTTP 502"*|*"HTTP 503"*|*"HTTP 504"*)
       echo "GitHub timed out; will retry" ;;
-    *"rate limit"*|*"HTTP 403"*)
+    *"rate limit"*)
       echo "GitHub rate limit hit; will retry" ;;
     *)
-      printf '%s' "$err" | tr '\n' ' ' | cut -c1-120 ;;
+      printf '%s' "$err" | tr '\n' ' ' | sed 's/^gh: //; s/[[:space:]]*$//' | cut -c1-160 ;;
   esac
+}
+
+# Runs gh with stderr captured, retrying once on a gateway error. Prints
+# stdout on success. On failure it prints the error object and returns 1, so
+# a caller capturing its output can pass the object on: a die here would only
+# leave the subshell.
+gh_run() {
+  local out errfile rc attempt
+  errfile="$(mktemp)"
+  for attempt in 1 2; do
+    rc=0
+    out="$(gh "$@" 2>"$errfile")" || rc=$?
+    (( rc == 0 )) && break
+    grep -qE 'HTTP 50[234]' "$errfile" || break
+    (( attempt == 1 )) && sleep 2
+  done
+  local err
+  err="$(cat "$errfile")"
+  rm -f "$errfile"
+  if (( rc != 0 )); then
+    printf '{"ok":false,"error":%s,"groups":[]}\n' "$(json_string "$(explain "$err")")"
+    return 1
+  fi
+  printf '%s' "$out"
+}
+
+graphql_error() {
+  jq -r '[(if type == "array" then .[] else . end) | .errors[]?.message] | first // empty' 2>/dev/null || true
+}
+
+demo_on() { [[ -f "$DEMO_FILE" ]]; }
+
+# Demo PRs carry ages rather than dates, so a screenshot taken next year still
+# says "updated 2h".
+demo_data() {
+  jq 'map(.data.search.nodes |= map(
+        .createdAt = (now - .createdAgo | floor | todate)
+        | .updatedAt = (now - .updatedAgo | floor | todate)))' "$DEMO_DATA"
 }
 
 list() {
   local query="${1:-$DEFAULT_QUERY}"
   [[ -n "${query// }" ]] || query="$DEFAULT_QUERY"
 
-  if [[ -f "$DEMO_FILE" ]]; then
-    jq "$TRANSFORM" "$SCRIPT_DIR/../assets/demo.json"
+  if demo_on; then
+    demo_data | jq "$LIST_TRANSFORM"
     return
   fi
 
   command -v gh >/dev/null || die "gh is not installed"
+  local out gql_error
+  out="$(gh_run api graphql --paginate --slurp -f query="$LIST_QUERY" -f q="$query")" \
+    || { printf '%s\n' "$out"; exit 0; }
+  gql_error="$(graphql_error <<<"$out")"
+  [[ -z "$gql_error" ]] || die "GitHub: $gql_error"
+  jq "$LIST_TRANSFORM" <<<"$out" 2>/dev/null || die "unexpected response from GitHub"
+}
 
-  local out err rc=0
-  err="$(mktemp)"
-  trap 'rm -f "$err"' RETURN
-  out="$(gh api graphql --paginate --slurp -f query="$QUERY" -f q="$query" 2>"$err")" || rc=$?
-  if (( rc != 0 )); then
-    die "$(explain "$(cat "$err")")"
+detail() {
+  local repo="${1-}" number="${2-}"
+  valid_repo "$repo" || die "not a repository: $repo"
+  valid_number "$number" || die "not a PR number: $number"
+
+  if demo_on; then
+    jq --arg repo "$repo" --argjson n "$number" '
+      [.[].data.search.nodes[] | select(.repository.nameWithOwner == $repo and .number == $n)][0] as $p
+      | if $p == null then {ok: false, error: "no such demo PR"}
+        else {data: {repository: ($p.repository + {pullRequest: $p})}} end' <(demo_data) \
+      | jq "if .ok == false then . else ($DETAIL_TRANSFORM) end"
+    return
   fi
 
-  local gql_error
-  gql_error="$(jq -r '[.[].errors[]?.message] | first // empty' <<<"$out" 2>/dev/null || true)"
+  command -v gh >/dev/null || die "gh is not installed"
+  # GitHub works out mergeability lazily: the first request for a PR nobody
+  # has looked at lately says UNKNOWN and starts the computation, and asking
+  # again a moment later usually has the answer.
+  local out gql_error attempt
+  for attempt in 1 2; do
+    out="$(gh_run api graphql -f query="$DETAIL_QUERY" \
+      -f owner="${repo%%/*}" -f name="${repo#*/}" -F number="$number")" \
+      || { printf '%s\n' "$out"; exit 0; }
+    jq -e '.data.repository.pullRequest.mergeable == "UNKNOWN"' <<<"$out" >/dev/null 2>&1 || break
+    (( attempt == 1 )) && sleep 1.5
+  done
+  gql_error="$(graphql_error <<<"$out")"
   [[ -z "$gql_error" ]] || die "GitHub: $gql_error"
+  jq "$DETAIL_TRANSFORM" <<<"$out" 2>/dev/null || die "unexpected response from GitHub"
+}
 
-  jq "$TRANSFORM" <<<"$out" 2>/dev/null || die "unexpected response from GitHub"
+# Run from / so a branch deletion can only ever be the remote one: gh deletes
+# the local branch too when it is run inside a checkout of the repository.
+merge() {
+  local repo="${1-}" number="${2-}" method="${3-}" sha="${4-}"
+  valid_repo "$repo" || die "not a repository: $repo"
+  valid_number "$number" || die "not a PR number: $number"
+  valid_method "$method" || die "not a merge method: $method"
+  valid_sha "$sha" || die "not a commit SHA: $sha"
+  demo_on && ok "demo mode: nothing merged"
+
+  cd /
+  local out
+  out="$(gh_run pr merge "$number" -R "$repo" "--$method" --match-head-commit "$sha")" \
+    || { printf '%s\n' "$out"; exit 0; }
+  ok "merged $repo#$number ($method)"
+}
+
+close_pr() {
+  local repo="${1-}" number="${2-}" delete="${3-}"
+  valid_repo "$repo" || die "not a repository: $repo"
+  valid_number "$number" || die "not a PR number: $number"
+  [[ -z "$delete" || "$delete" == "delete-branch" ]] || die "unexpected argument: $delete"
+  demo_on && ok "demo mode: nothing closed"
+
+  cd /
+  local args=(pr close "$number" -R "$repo")
+  [[ -n "$delete" ]] && args+=(--delete-branch)
+  local out
+  out="$(gh_run "${args[@]}")" || { printf '%s\n' "$out"; exit 0; }
+  if [[ -n "$delete" ]]; then ok "closed $repo#$number and deleted its branch"; fi
+  ok "closed $repo#$number"
+}
+
+copy() {
+  local url="${1-}"
+  valid_url "$url" || die "not a PR URL"
+  command -v wl-copy >/dev/null || die "wl-copy is not installed"
+  printf '%s' "$url" | wl-copy 2>/dev/null || die "could not reach the clipboard"
+  ok "copied"
 }
 
 demo() {
@@ -192,8 +439,20 @@ demo() {
   esac
 }
 
-case "${1-list}" in
-  list) shift || true; list "${1-}" ;;
-  demo) shift; demo "${1-}" ;;
-  *) echo "usage: gh-prs list [query] | demo on|off" >&2; exit 2 ;;
+usage() {
+  echo "usage: gh-prs list [query] | detail <owner/repo> <n> | merge <owner/repo> <n> <method> <sha>" >&2
+  echo "       gh-prs close <owner/repo> <n> [delete-branch] | copy <url> | demo on|off" >&2
+  exit 2
+}
+
+cmd="${1-list}"
+shift || true
+case "$cmd" in
+  list) list "${1-}" ;;
+  detail) detail "$@" ;;
+  merge) merge "$@" ;;
+  close) close_pr "$@" ;;
+  copy) copy "$@" ;;
+  demo) demo "$@" ;;
+  *) usage ;;
 esac
