@@ -1,0 +1,347 @@
+[
+ {
+  "data": {
+   "search": {
+    "issueCount": 9,
+    "pageInfo": {
+     "hasNextPage": false,
+     "endCursor": null
+    },
+    "nodes": [
+     {
+      "number": 482,
+      "title": "Retry webhook deliveries with exponential backoff",
+      "url": "https://github.com/acme/api/pull/482",
+      "isDraft": false,
+      "reviewDecision": "APPROVED",
+      "updatedAt": "2026-01-10T15:00:00Z",
+      "repository": {
+       "name": "api",
+       "owner": {
+        "login": "acme"
+       }
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": {
+           "state": "SUCCESS",
+           "contexts": {
+            "checkRunCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 14
+             },
+             {
+              "state": "SKIPPED",
+              "count": 6
+             }
+            ],
+            "statusContextCountsByState": []
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     {
+      "number": 479,
+      "title": "Add pagination to the audit log endpoint",
+      "url": "https://github.com/acme/api/pull/479",
+      "isDraft": false,
+      "reviewDecision": "CHANGES_REQUESTED",
+      "updatedAt": "2026-01-10T14:00:00Z",
+      "repository": {
+       "name": "api",
+       "owner": {
+        "login": "acme"
+       }
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": {
+           "state": "SUCCESS",
+           "contexts": {
+            "checkRunCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 18
+             },
+             {
+              "state": "FAILURE",
+              "count": 2
+             }
+            ],
+            "statusContextCountsByState": []
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     {
+      "number": 1203,
+      "title": "Dark mode for the settings page",
+      "url": "https://github.com/acme/web/pull/1203",
+      "isDraft": false,
+      "reviewDecision": null,
+      "updatedAt": "2026-01-10T13:30:00Z",
+      "repository": {
+       "name": "web",
+       "owner": {
+        "login": "acme"
+       }
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": {
+           "state": "SUCCESS",
+           "contexts": {
+            "checkRunCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 3
+             },
+             {
+              "state": "IN_PROGRESS",
+              "count": 5
+             },
+             {
+              "state": "QUEUED",
+              "count": 4
+             }
+            ],
+            "statusContextCountsByState": []
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     {
+      "number": 1198,
+      "title": "Upgrade the bundler and drop the legacy polyfills",
+      "url": "https://github.com/acme/web/pull/1198",
+      "isDraft": true,
+      "reviewDecision": null,
+      "updatedAt": "2026-01-09T10:00:00Z",
+      "repository": {
+       "name": "web",
+       "owner": {
+        "login": "acme"
+       }
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": {
+           "state": "SUCCESS",
+           "contexts": {
+            "checkRunCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 9
+             },
+             {
+              "state": "CANCELLED",
+              "count": 1
+             }
+            ],
+            "statusContextCountsByState": []
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     {
+      "number": 57,
+      "title": "Pin the base image by digest",
+      "url": "https://github.com/acme/infra/pull/57",
+      "isDraft": false,
+      "reviewDecision": "REVIEW_REQUIRED",
+      "updatedAt": "2026-01-08T09:00:00Z",
+      "repository": {
+       "name": "infra",
+       "owner": {
+        "login": "acme"
+       }
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": {
+           "state": "SUCCESS",
+           "contexts": {
+            "checkRunCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 6
+             },
+             {
+              "state": "NEUTRAL",
+              "count": 1
+             }
+            ],
+            "statusContextCountsByState": []
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     {
+      "number": 311,
+      "title": "Handle CRLF line endings in the tokenizer",
+      "url": "https://github.com/octo-labs/parser/pull/311",
+      "isDraft": false,
+      "reviewDecision": "APPROVED",
+      "updatedAt": "2026-01-10T11:00:00Z",
+      "repository": {
+       "name": "parser",
+       "owner": {
+        "login": "octo-labs"
+       }
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": {
+           "state": "SUCCESS",
+           "contexts": {
+            "checkRunCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 4
+             }
+            ],
+            "statusContextCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 1
+             }
+            ]
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     {
+      "number": 309,
+      "title": "Fuzz the escape-sequence decoder",
+      "url": "https://github.com/octo-labs/parser/pull/309",
+      "isDraft": false,
+      "reviewDecision": null,
+      "updatedAt": "2026-01-10T08:00:00Z",
+      "repository": {
+       "name": "parser",
+       "owner": {
+        "login": "octo-labs"
+       }
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": {
+           "state": "SUCCESS",
+           "contexts": {
+            "checkRunCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 2
+             },
+             {
+              "state": "PENDING",
+              "count": 1
+             }
+            ],
+            "statusContextCountsByState": []
+           }
+          }
+         }
+        }
+       ]
+      }
+     },
+     {
+      "number": 18,
+      "title": "Switch the prompt to a two-line layout",
+      "url": "https://github.com/you/dotfiles/pull/18",
+      "isDraft": false,
+      "reviewDecision": null,
+      "updatedAt": "2026-01-07T09:00:00Z",
+      "repository": {
+       "name": "dotfiles",
+       "owner": {
+        "login": "you"
+       }
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": null
+         }
+        }
+       ]
+      }
+     },
+     {
+      "number": 42,
+      "title": "Add a --json flag to search",
+      "url": "https://github.com/you/notes-cli/pull/42",
+      "isDraft": true,
+      "reviewDecision": null,
+      "updatedAt": "2026-01-06T09:00:00Z",
+      "repository": {
+       "name": "notes-cli",
+       "owner": {
+        "login": "you"
+       }
+      },
+      "commits": {
+       "nodes": [
+        {
+         "commit": {
+          "statusCheckRollup": {
+           "state": "SUCCESS",
+           "contexts": {
+            "checkRunCountsByState": [
+             {
+              "state": "SUCCESS",
+              "count": 3
+             },
+             {
+              "state": "IN_PROGRESS",
+              "count": 1
+             }
+            ],
+            "statusContextCountsByState": []
+           }
+          }
+         }
+        }
+       ]
+      }
+     }
+    ]
+   }
+  }
+ }
+]

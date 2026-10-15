@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "id": "travisjeffery.gh-prs",
+  "name": "GitHub PRs",
+  "version": "0.1.0",
+  "author": "Travis Jeffery",
+  "description": "Your open GitHub pull requests in the bar, with a dot for whether their checks pass and a click that opens each one",
+  "license": "MIT",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "GitHub PRs",
+    "description": "Your open pull requests and their check status, grouped by owner",
+    "category": "Apps",
+    "aliases": [
+      "github",
+      "pull requests",
+      "ci",
+      "checks"
+    ],
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "badge": "failing",
+      "badgeDrafts": false,
+      "interval": 60,
+      "query": ""
+    },
+    "schema": [
+      {
+        "key": "badge",
+        "type": "string",
+        "label": "Badge counts: failing, active (failing and running) or none",
+        "defaultValue": "failing"
+      },
+      {
+        "key": "badgeDrafts",
+        "type": "boolean",
+        "label": "Count draft PRs in the badge",
+        "defaultValue": false
+      },
+      {
+        "key": "interval",
+        "type": "integer",
+        "label": "Refresh every (seconds)",
+        "min": 30,
+        "max": 3600,
+        "defaultValue": 60
+      },
+      {
+        "key": "query",
+        "type": "string",
+        "label": "GitHub search (blank: is:pr is:open author:@me archived:false)",
+        "defaultValue": ""
+      }
+    ]
+  }
+}

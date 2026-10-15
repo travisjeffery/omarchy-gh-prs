@@ -1,0 +1,199 @@
+#!/bin/bash
+# gh-prs — your open GitHub pull requests and their checks, as JSON.
+#
+#   list [query]  every open PR the search finds, grouped by owner
+#   demo on|off   invented PRs instead of yours, for screenshots
+#
+# One GraphQL search, paged, per refresh. Check states come from each PR's
+# head commit status rollup, as counts per state, so a PR with eighty checks
+# costs no more than one with two. The search is `is:pr is:open author:@me
+# archived:false` unless the panel passes its own.
+#
+# Pages are 50 PRs, not GraphQL's maximum of 100: a full page with rollups
+# runs close to GitHub's ten-second limit and fails with a 502 often enough to
+# notice, while two half pages do not.
+#
+# Every failure is still a JSON object with `ok: false` and a one-line
+# `error`, so the panel can keep showing what it had and say why it is stale.
+#
+# Titles, repository and owner names come from GitHub and are printed as JSON
+# strings, drawn as plain text, and never handed to a shell.
+
+set -euo pipefail
+umask 077
+
+readonly CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-gh-prs"
+readonly DEMO_FILE="$CACHE_DIR/demo"
+readonly DEFAULT_QUERY="is:pr is:open author:@me archived:false"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+
+die() {
+  printf '{"ok":false,"error":%s,"groups":[]}\n' "$(printf '%s' "$1" | jq -Rs .)"
+  exit 0
+}
+
+read -r -d '' QUERY <<'GRAPHQL' || true
+query($q: String!, $endCursor: String) {
+  search(query: $q, type: ISSUE, first: 50, after: $endCursor) {
+    issueCount
+    pageInfo { hasNextPage endCursor }
+    nodes {
+      ... on PullRequest {
+        number
+        title
+        url
+        isDraft
+        reviewDecision
+        updatedAt
+        repository { name owner { login } }
+        commits(last: 1) {
+          nodes {
+            commit {
+              statusCheckRollup {
+                state
+                contexts(first: 0) {
+                  checkRunCountsByState { state count }
+                  statusContextCountsByState { state count }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+GRAPHQL
+
+# Pages of search results in, the panel's payload out.
+#
+# A check counts against a PR when it ended badly: failed, cancelled, timed
+# out, waiting on someone to approve the run, never started, or left stale by
+# GitHub. It is still running while it is queued, pending, waiting or in
+# progress. Success, neutral and skipped are all fine, and so is a bare
+# `completed`, which is a run that finished without a conclusion.
+#
+# Failing outranks running: one red check already decides the PR, however many
+# are still going.
+# shellcheck disable=SC2016 # jq, not shell, expands these
+readonly TRANSFORM='
+  def failing: ["FAILURE","CANCELLED","TIMED_OUT","ACTION_REQUIRED","STARTUP_FAILURE","STALE","ERROR"];
+  def pending: ["PENDING","QUEUED","IN_PROGRESS","WAITING","EXPECTED"];
+  def rank: {failing: 0, running: 1, passing: 2, none: 3}[.];
+
+  def review:
+    if . == "APPROVED" then "approved"
+    elif . == "CHANGES_REQUESTED" then "changes requested"
+    elif . == "REVIEW_REQUIRED" then "review required"
+    else "" end;
+
+  def pr:
+    (.commits.nodes[0].commit.statusCheckRollup.contexts // {}) as $c
+    | (($c.checkRunCountsByState // []) + ($c.statusContextCountsByState // [])) as $counts
+    | ([$counts[].count] | add // 0) as $total
+    | ([$counts[] | select(.state as $s | failing | index($s)) | .count] | add // 0) as $fail
+    | ([$counts[] | select(.state as $s | pending | index($s)) | .count] | add // 0) as $pend
+    | (if $total == 0 then "none"
+       elif $fail > 0 then "failing"
+       elif $pend > 0 then "running"
+       else "passing" end) as $state
+    | {
+        number, title, url, updatedAt,
+        draft: .isDraft,
+        owner: .repository.owner.login,
+        repo: .repository.name,
+        state: $state,
+        checks: {total: $total, failing: $fail, running: $pend, done: ($total - $pend)},
+        label: (if $state == "failing" then "failing \($fail)"
+                elif $state == "running" then "running \($total - $pend)/\($total)"
+                elif $state == "passing" then "passing"
+                else "no checks" end),
+        review: (.reviewDecision | review)
+      };
+
+  [.[].data.search.nodes[] | select(.number != null) | pr] as $prs
+  | {
+      ok: true,
+      error: "",
+      fetchedAt: now | floor,
+      total: ($prs | length),
+      failing: ([$prs[] | select(.state == "failing")] | length),
+      running: ([$prs[] | select(.state == "running")] | length),
+      passing: ([$prs[] | select(.state == "passing")] | length),
+      none: ([$prs[] | select(.state == "none")] | length),
+      drafts: ([$prs[] | select(.draft)] | length),
+      badge: {
+        failing: ([$prs[] | select(.state == "failing" and (.draft | not))] | length),
+        running: ([$prs[] | select(.state == "running" and (.draft | not))] | length),
+        failingDrafts: ([$prs[] | select(.state == "failing" and .draft)] | length),
+        runningDrafts: ([$prs[] | select(.state == "running" and .draft)] | length)
+      },
+      groups: ($prs
+        | group_by(.owner | ascii_downcase)
+        | map({
+            owner: .[0].owner,
+            failing: ([.[] | select(.state == "failing")] | length),
+            prs: (sort_by(.updatedAt) | reverse | sort_by(.draft, (.state | rank)))
+          }))
+    }
+'
+
+# gh says what went wrong in its own words on stderr. Most of that is useful
+# and too long for one line of a panel, so the common cases get a short name.
+explain() {
+  local err="$1"
+  case "$err" in
+    *"auth login"*|*"HTTP 401"*|*"Bad credentials"*)
+      echo "gh is not signed in: run gh auth login" ;;
+    *"dial tcp"*|*"no such host"*|*"could not resolve"*|*"connection refused"*|*"network is unreachable"*|*"i/o timeout"*|*"TLS handshake"*)
+      echo "GitHub is unreachable (offline?)" ;;
+    *"HTTP 502"*|*"HTTP 503"*|*"HTTP 504"*)
+      echo "GitHub timed out; will retry" ;;
+    *"rate limit"*|*"HTTP 403"*)
+      echo "GitHub rate limit hit; will retry" ;;
+    *)
+      printf '%s' "$err" | tr '\n' ' ' | cut -c1-120 ;;
+  esac
+}
+
+list() {
+  local query="${1:-$DEFAULT_QUERY}"
+  [[ -n "${query// }" ]] || query="$DEFAULT_QUERY"
+
+  if [[ -f "$DEMO_FILE" ]]; then
+    jq "$TRANSFORM" "$SCRIPT_DIR/../assets/demo.json"
+    return
+  fi
+
+  command -v gh >/dev/null || die "gh is not installed"
+
+  local out err rc=0
+  err="$(mktemp)"
+  trap 'rm -f "$err"' RETURN
+  out="$(gh api graphql --paginate --slurp -f query="$QUERY" -f q="$query" 2>"$err")" || rc=$?
+  if (( rc != 0 )); then
+    die "$(explain "$(cat "$err")")"
+  fi
+
+  local gql_error
+  gql_error="$(jq -r '[.[].errors[]?.message] | first // empty' <<<"$out" 2>/dev/null || true)"
+  [[ -z "$gql_error" ]] || die "GitHub: $gql_error"
+
+  jq "$TRANSFORM" <<<"$out" 2>/dev/null || die "unexpected response from GitHub"
+}
+
+demo() {
+  mkdir -p "$CACHE_DIR"
+  case "${1-}" in
+    on) : >"$DEMO_FILE" ;;
+    off) rm -f "$DEMO_FILE" ;;
+    *) echo "usage: gh-prs demo on|off" >&2; exit 2 ;;
+  esac
+}
+
+case "${1-list}" in
+  list) shift || true; list "${1-}" ;;
+  demo) shift; demo "${1-}" ;;
+  *) echo "usage: gh-prs list [query] | demo on|off" >&2; exit 2 ;;
+esac
