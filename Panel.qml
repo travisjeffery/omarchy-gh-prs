@@ -25,8 +25,8 @@ import qs.Ui
 Panel {
   id: root
 
-  moduleName: "travisjeffery.gh-prs"
-  ipcTarget: "travisjeffery.gh-prs"
+  moduleName: "io.github.travisjeffery.gh-prs"
+  ipcTarget: "io.github.travisjeffery.gh-prs"
 
   readonly property string script:
     Qt.resolvedUrl("bin/gh-prs").toString().replace(/^file:\/\//, "")

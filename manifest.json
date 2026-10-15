@@ -1,11 +1,12 @@
 {
   "schemaVersion": 1,
-  "id": "travisjeffery.gh-prs",
+  "id": "io.github.travisjeffery.gh-prs",
   "name": "GitHub PRs",
   "version": "0.1.0",
   "author": "Travis Jeffery",
-  "description": "Your open GitHub pull requests in the bar, with a dot for whether their checks pass and a click that opens each one",
   "license": "MIT",
+  "description": "Your open GitHub pull requests in the bar, with a dot for whether their checks pass and a click that opens each one",
+  "homepage": "https://github.com/travisjeffery/omarchy-gh-prs",
   "kinds": [
     "bar-widget"
   ],
@@ -15,7 +16,7 @@
   "barWidget": {
     "displayName": "GitHub PRs",
     "description": "Your open pull requests and their check status, grouped by owner",
-    "category": "Apps",
+    "category": "Developer Tools",
     "aliases": [
       "github",
       "pull requests",
