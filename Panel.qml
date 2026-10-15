@@ -70,6 +70,11 @@ Panel {
   readonly property int intervalSeconds:
     Math.max(30, Number(setting("interval", 60)) || 60)
   readonly property string query: String(setting("query", ""))
+  // "status" puts what is ready to merge on top; "date" is plain recency.
+  // Chosen from the header and kept in the plugin's own state file rather
+  // than in shell.json: other widgets save shell.json from their own copy of
+  // it, and a choice written there was seen to be overwritten seconds later.
+  property string sortMode: "status"
 
   // ---------------------------------------------------------------- state
 
@@ -188,6 +193,44 @@ Panel {
 
   // Owner headings and PR rows in one flat list, so one ListView scrolls the
   // lot and the cursor can step over the headings.
+  // By status: passing first, then running, failing, and no checks, drafts
+  // after the rest within each, newest first within that. Owners with
+  // anything passing come first, then by their newest PR. By date: newest
+  // first, PRs and owners alike. The script already sends both by date.
+  function sortGroups(groups) {
+    if (sortMode === "date") return groups
+    var rank = { passing: 0, running: 1, failing: 2, none: 3 }
+    function newest(a, b) { return a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0 }
+    var out = groups.map(function(g) {
+      var prs = g.prs.slice().sort(function(a, b) {
+        return (rank[a.state] - rank[b.state])
+          || ((a.draft ? 1 : 0) - (b.draft ? 1 : 0))
+          || newest(a, b)
+      })
+      var anyPassing = g.prs.some(function(pr) { return pr.state === "passing" })
+      var latest = g.prs.reduce(function(m, pr) { return pr.updatedAt > m ? pr.updatedAt : m }, "")
+      return { owner: g.owner, failing: g.failing, prs: prs, anyPassing: anyPassing, latest: latest }
+    })
+    out.sort(function(a, b) {
+      return ((b.anyPassing ? 1 : 0) - (a.anyPassing ? 1 : 0))
+        || (a.latest < b.latest ? 1 : a.latest > b.latest ? -1 : 0)
+    })
+    return out
+  }
+
+  function setSort(mode) {
+    if ((mode !== "status" && mode !== "date") || mode === sortMode) return
+    sortMode = mode
+    Util.execArgv([root.script, "sort", mode])
+  }
+
+  function rebuildRows() {
+    rows = flatten(sortGroups(payload ? payload.groups || [] : []))
+    if (!isPr(cursor)) cursor = -1
+  }
+
+  onSortModeChanged: rebuildRows()
+
   function flatten(groups) {
     var out = []
     for (var i = 0; i < groups.length; i++) {
@@ -300,8 +343,7 @@ Panel {
       errorText = data.error || ""
       if (!reachable) return
       payload = data
-      rows = flatten(data.groups || [])
-      if (!isPr(cursor)) cursor = -1
+      rebuildRows()
     } catch (e) {
       reachable = false
       errorText = "unexpected output from gh-prs"
@@ -471,6 +513,19 @@ Panel {
     }
   }
 
+  // The saved sort order, read once at load.
+  Process {
+    id: sortProc
+    command: [root.script, "sort"]
+    running: true
+    stdout: StdioCollector {
+      onStreamFinished: {
+        var m = text.trim()
+        if (m === "status" || m === "date") root.sortMode = m
+      }
+    }
+  }
+
   Process {
     id: listProc
     stdout: StdioCollector {
@@ -518,6 +573,9 @@ Panel {
     triggeredOnStart: true
     onTriggered: root.refresh()
   }
+
+
+
 
 
   BarIconButton {
@@ -596,6 +654,8 @@ Panel {
         if (root.view === "list" && dy !== 0) root.moveCursor(dy)
         else if (root.view === "detail" && dx < 0) root.back()
       }
+      // PanelKeyCatcher hands `x` to deleteRequested rather than textKey.
+      onDeleteRequested: if (root.view === "detail") root.armClose()
       onActivateRequested: {
         if (root.view === "list" && root.isPr(root.cursor)) root.showDetail(root.rows[root.cursor])
       }
@@ -609,7 +669,7 @@ Panel {
         // These only arm the action and show what it will do; the confirm
         // itself is a click, so no run of keystrokes can merge or close.
         else if (t === "m" && root.view === "detail") root.armMerge()
-        else if (t === "x" && root.view === "detail") root.armClose()
+        else if (t === "s" && root.view === "list") root.setSort(root.sortMode === "status" ? "date" : "status")
       }
 
       Column {
@@ -619,8 +679,16 @@ Panel {
 
         // ------------------------------------------------------- header
 
-        PanelSectionHeader {
+        Item {
           width: parent.width
+          height: Math.max(header.implicitHeight, sortSwitch.implicitHeight)
+
+        PanelSectionHeader {
+          id: header
+          anchors.left: parent.left
+          anchors.right: sortSwitch.visible ? sortSwitch.left : parent.right
+          anchors.rightMargin: sortSwitch.visible ? Style.space(8) : 0
+          anchors.verticalCenter: parent.verticalCenter
           text: root.view === "detail" && root.shown
             ? root.shown.repoFull + " #" + root.shown.number
             : root.titleText() + (root.loading ? "  …" : "")
@@ -628,6 +696,34 @@ Panel {
           elide: Text.ElideRight
           foreground: root.foreground
           fontFamily: root.fontFamily
+        }
+
+        // Two states, both always visible, so it reads as "which order" and
+        // not as a button that does something.
+        Row {
+          id: sortSwitch
+          visible: root.view === "list"
+          anchors.right: parent.right
+          anchors.verticalCenter: parent.verticalCenter
+          spacing: Style.space(2)
+
+          Repeater {
+            model: [{ mode: "status", label: "By status" }, { mode: "date", label: "By date" }]
+
+            Button {
+              required property var modelData
+              text: modelData.label
+              selected: root.sortMode === modelData.mode
+              bordered: root.sortMode === modelData.mode
+              fontSize: Style.font.caption
+              verticalPadding: Style.space(1)
+              foreground: root.sortMode === modelData.mode ? root.foreground : root.quiet
+              fontFamily: root.fontFamily
+              tooltipText: "Sort " + modelData.label.toLowerCase() + " (s)"
+              onClicked: root.setSort(modelData.mode)
+            }
+          }
+        }
         }
 
         PanelSeparator { width: parent.width }

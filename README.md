@@ -14,8 +14,16 @@ failing, yellow when it is only counting checks still running, and gone when
 there is nothing to count. The tooltip spells out the totals.
 
 The panel lists every open PR, grouped by the org or user that owns the
-repository. Groups are ordered by their most recently updated PR, and PRs
-within a group newest first. Each row has:
+repository, in one of two orders, switched from the header:
+
+- **By status** (the default): within each owner, passing PRs first, then
+  running, failing, and those with no checks, drafts after the rest in each,
+  and newest first within that. Owners with anything passing come first, then
+  by their most recently updated PR.
+- **By date**: newest first, PRs and owners alike, whatever their checks say.
+
+The choice is saved in `~/.local/state/omarchy-gh-prs/sort`, so it survives a
+restart. Each row has:
 
 - **A dot** for the head commit's checks:
   - **green**: every check finished and passed (success, neutral or skipped)
@@ -75,6 +83,7 @@ GitHub refuses the merge instead. It never passes `--admin`.
 | Key | List | Detail view |
 |-----|------|-------------|
 | `↑` `↓` | move between PRs | |
+| `s` | switch between by status and by date | |
 | `Enter` | open the detail view | |
 | `o` | open the PR in the browser | open the PR in the browser |
 | `c` | | copy the link |

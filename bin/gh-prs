@@ -9,6 +9,7 @@
 #   close <owner/repo> <n> [delete-branch]
 #                                   close it, and delete its branch if asked
 #   copy <url>                      put a PR's URL on the clipboard
+#   sort [status|date]              print, or save, the panel's sort order
 #   demo on|off                     invented PRs instead of yours, for screenshots
 #
 # The list is one GraphQL search, paged, per refresh. Check states come from
@@ -42,6 +43,8 @@ umask 077
 
 readonly CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/omarchy-gh-prs"
 readonly DEMO_FILE="$CACHE_DIR/demo"
+readonly STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/omarchy-gh-prs"
+readonly SORT_FILE="$STATE_DIR/sort"
 readonly DEFAULT_QUERY="is:pr is:open author:@me archived:false"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 readonly SCRIPT_DIR
@@ -430,6 +433,21 @@ copy() {
   ok "copied"
 }
 
+# The panel's sort order, kept here rather than in shell.json (see Panel.qml).
+# Anything but the two known values reads as the default.
+sort_order() {
+  case "${1-}" in
+    "")
+      local mode=""
+      [[ -f "$SORT_FILE" ]] && mode="$(head -c 16 "$SORT_FILE")"
+      [[ "$mode" == "date" ]] && echo date || echo status ;;
+    status|date)
+      mkdir -p "$STATE_DIR"
+      printf '%s\n' "$1" >"$SORT_FILE.tmp" && mv "$SORT_FILE.tmp" "$SORT_FILE" ;;
+    *) echo "usage: gh-prs sort [status|date]" >&2; exit 2 ;;
+  esac
+}
+
 demo() {
   mkdir -p "$CACHE_DIR"
   case "${1-}" in
@@ -441,7 +459,7 @@ demo() {
 
 usage() {
   echo "usage: gh-prs list [query] | detail <owner/repo> <n> | merge <owner/repo> <n> <method> <sha>" >&2
-  echo "       gh-prs close <owner/repo> <n> [delete-branch] | copy <url> | demo on|off" >&2
+  echo "       gh-prs close <owner/repo> <n> [delete-branch] | copy <url> | sort [status|date] | demo on|off" >&2
   exit 2
 }
 
@@ -453,6 +471,7 @@ case "$cmd" in
   merge) merge "$@" ;;
   close) close_pr "$@" ;;
   copy) copy "$@" ;;
+  sort) sort_order "$@" ;;
   demo) demo "$@" ;;
   *) usage ;;
 esac
