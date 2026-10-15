@@ -5,7 +5,7 @@
   "version": "0.2.0",
   "author": "Travis Jeffery",
   "license": "MIT",
-  "description": "Your open GitHub pull requests in the bar, with a dot for whether their checks pass and a click that opens each one",
+  "description": "Your open GitHub pull requests in the bar: whether their checks pass, sorted by status or date, with a detail view to copy, merge or close each one",
   "homepage": "https://github.com/travisjeffery/omarchy-gh-prs",
   "kinds": [
     "bar-widget"
