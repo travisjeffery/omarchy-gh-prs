@@ -42,7 +42,6 @@ Panel {
   readonly property string iconDot: ""
 
   readonly property color foreground: bar ? bar.foreground : Color.foreground
-  readonly property color accent: Color.accent
   readonly property color urgent: bar ? bar.urgent : Color.urgent
   // Omarchy themes carry no green or yellow, and "passing" and "running" are
   // green and yellow on every CI page there is. Borrowing the accent for
@@ -120,17 +119,27 @@ Panel {
   }
 
   // The bar hands a Panel zero width unless it is computed here, from
-  // content, never from a child.
+  // content, never from a child. The icon takes a standard bar slot and the
+  // badge sits beside it, not inside an iconComponent: the bar scales a
+  // custom icon until its widest side fits the icon size, which shrank the
+  // whole icon-plus-badge row to a speck.
+  readonly property bool vertical: bar ? bar.vertical : false
+  readonly property int badgeHeight: Style.space(10)
+  readonly property int badgeFont: Style.space(8)
   readonly property int badgeWidth: badgeCount > 0
-    ? Math.max(Style.space(12), String(badgeCount).length * Style.space(6) + Style.space(8))
+    ? Math.max(badgeHeight, String(badgeCount).length * Style.space(5) + Style.space(5))
     : 0
-  readonly property int barContentWidth: Style.bar.iconFont + badgeWidth + Style.space(5)
-  readonly property int barSlot: barContentWidth + Style.space(10)
+  // The badge starts just past the icon's painted edge, so the widget keeps
+  // the slot's own padding after it.
+  readonly property int badgeGap: Style.space(2)
+  readonly property real badgeStart: (Style.bar.iconSlot + Style.bar.iconSize) / 2 + badgeGap
+  readonly property int badgeExtent: badgeCount > 0
+    ? badgeGap + (vertical ? badgeHeight : badgeWidth)
+    : 0
+  readonly property int barSlot: Style.bar.iconSlot + badgeExtent
 
-  readonly property real openPanelIndicatorWidth: barContentWidth
-  readonly property real openPanelIndicatorHeight: barContentWidth
-  implicitWidth: bar && bar.vertical ? (bar ? bar.barSize : Style.bar.sizeHorizontal) : barSlot
-  implicitHeight: bar && bar.vertical ? barSlot : (bar ? bar.barSize : Style.bar.sizeHorizontal)
+  implicitWidth: vertical ? (bar ? bar.barSize : Style.bar.sizeVertical) : barSlot
+  implicitHeight: vertical ? barSlot : (bar ? bar.barSize : Style.bar.sizeHorizontal)
 
   // --------------------------------------------------------------- helpers
 
@@ -578,52 +587,61 @@ Panel {
 
 
 
+  // One button covers the whole widget, icon and badge, so the bar's hover,
+  // tooltip and click forwarding treat it as one target. It paints nothing
+  // itself: the icon is drawn in a standard slot at the start, with the same
+  // optical sizing the built-in widgets get, and the badge fills what it
+  // added, after the icon on a horizontal bar and below it on a vertical one.
   BarIconButton {
     id: button
     anchors.fill: parent
     bar: root.bar
     opacity: root.reachable ? 1 : 0.5
     slotSize: root.barSlot
-    opticalSize: root.barContentWidth
+    hasVisualContent: true
     tooltipText: root.plain(root.tooltipText())
 
-    iconComponent: Component {
-      Item {
-        Row {
-          anchors.centerIn: parent
-          spacing: Style.space(5)
+    Item {
+      id: iconSlot
+      x: !root.vertical && LayoutMirroring.enabled ? root.width - width : 0
+      width: root.vertical ? root.width : Style.bar.iconSlot
+      height: root.vertical ? Style.bar.iconSlot : root.height
 
-          Text {
-            anchors.verticalCenter: parent.verticalCenter
-            text: root.iconPr
-            textFormat: Text.PlainText
-            font.family: root.fontFamily
-            font.pixelSize: Style.bar.iconFont
-            renderType: Text.NativeRendering
-            color: root.opened ? root.accent : root.foreground
-          }
+      OpticalGlyph {
+        anchors.centerIn: parent
+        width: button.canvasSize
+        height: button.canvasSize
+        text: root.iconPr
+        fontFamily: root.fontFamily
+        fontSize: Style.bar.iconFont
+        paintedSize: Style.bar.iconSize
+        // The bar marks an open panel itself, as it does for every widget.
+        color: button.foreground
+      }
+    }
 
-          // Red when anything counted is failing, the running colour when
-          // the count is only checks still going.
-          Rectangle {
-            anchors.verticalCenter: parent.verticalCenter
-            visible: root.badgeCount > 0
-            height: Style.space(12)
-            width: root.badgeWidth
-            radius: height / 2
-            color: root.badgeAlarm ? root.urgent : root.running
+    // Red when anything counted is failing, the running colour when the
+    // count is only checks still going.
+    Rectangle {
+      visible: root.badgeCount > 0
+      height: root.badgeHeight
+      width: root.badgeWidth
+      radius: height / 2
+      color: root.badgeAlarm ? root.urgent : root.running
+      x: root.vertical
+        ? (root.width - width) / 2
+        : (LayoutMirroring.enabled ? root.width - root.badgeStart - width : root.badgeStart)
+      y: root.vertical ? root.badgeStart : (root.height - height) / 2
 
-            Text {
-              anchors.centerIn: parent
-              text: root.badgeCount
-              textFormat: Text.PlainText
-              font.family: root.fontFamily
-              font.pixelSize: Style.font.caption
-              renderType: Text.NativeRendering
-              color: Color.background
-            }
-          }
-        }
+      Text {
+        anchors.centerIn: parent
+        text: root.badgeCount
+        textFormat: Text.PlainText
+        font.family: root.fontFamily
+        font.pixelSize: root.badgeFont
+        font.bold: true
+        renderType: Text.NativeRendering
+        color: Color.background
       }
     }
 
